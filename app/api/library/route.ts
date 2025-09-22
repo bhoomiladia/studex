@@ -1,5 +1,5 @@
 import {connectDB} from "@/lib/mongo";
-import Library from "@/models/Library";
+import Library from "@/models/LibraryTransaction";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
