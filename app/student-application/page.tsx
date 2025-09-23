@@ -25,10 +25,13 @@ export default function StudentApplicationForm() {
   const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value, type, checked } = e.target;
+    const target = e.target as HTMLInputElement | HTMLSelectElement;
+    const name = (target as any).name as keyof typeof formData;
+    const type = (target as any).type as string | undefined;
+    const value = type === "checkbox" ? (target as HTMLInputElement).checked : target.value;
     setFormData(prev => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: value as any,
     }));
   };
 
@@ -88,7 +91,19 @@ export default function StudentApplicationForm() {
     setIsLoading(true);
     setError("");
     try {
-      // await fetch('/api/student', { method: 'POST', body: JSON.stringify(formData) })
+      const res = await fetch("/api/student-application", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data?.error || "Something went wrong. Try again.");
+        return;
+      }
+
       setSuccessMessage("Application submitted successfully!");
       setSubmitted(true);
     } catch (err) {

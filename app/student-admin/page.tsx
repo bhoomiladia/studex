@@ -8,7 +8,7 @@ export default function StudentAdminDashboard() {
   const [filters, setFilters] = useState({ status: "", department: "", year: "", name: "" });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [sortBy, setSortBy] = useState("name");
+  const [sortBy, setSortBy] = useState("firstName");
   const [order, setOrder] = useState("asc");
   const [loading, setLoading] = useState(false);
 
@@ -16,33 +16,30 @@ export default function StudentAdminDashboard() {
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
-    const query = new URLSearchParams({
-      ...filters,
-      status: filters.status === "" ? "" : filters.status === "true" ? "true" : "false",
-      page: String(page),
-      limit: String(limit),
-      sortBy,
-      order,
-    }).toString();
+    try {
+      const query = new URLSearchParams({
+        ...filters,
+        status: filters.status === "" ? "" : filters.status === "true" ? "true" : "false",
+        page: String(page),
+        limit: String(limit),
+        sortBy,
+        order,
+      }).toString();
 
-    // Simulated API call - replace with your actual API
-    setTimeout(() => {
-      const mockData = {
-        students: Array.from({ length: 10 }, (_, i) => ({
-          _id: i.toString(),
-          rollNumber: `2023CS${1000 + i}`,
-          name: `Student ${i + 1}`,
-          department: ["CSE", "ECE", "MECH"][i % 3],
-          year: (i % 4) + 1,
-          status: i % 3 === 0,
-          email: `student${i + 1}@college.edu`
-        })),
-        total: 50
-      };
-      setStudents(mockData.students);
-      setTotal(mockData.total);
+      const res = await fetch(`/api/student-admin?${query}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data?.error || "Failed to fetch students");
+
+      setStudents(data.students || []);
+      setTotal(data.total || 0);
+    } catch (err) {
+      console.error(err);
+      setStudents([]);
+      setTotal(0);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   }, [filters, page, sortBy, order]);
 
   const handleApproveReject = async (id: string, action: "approve" | "reject") => {
@@ -52,41 +49,40 @@ export default function StudentAdminDashboard() {
     if (!confirm2) return;
 
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
-    }, 500);
+    try {
+      const res = await fetch('/api/student-admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: id, action })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Action failed');
+      await fetchStudents();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to perform action');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const viewDetails = async (id: string) => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSelectedStudent({
-        student: {
-          _id: id,
-          name: "Student Details",
-          rollNumber: "2023CS1001",
-          email: "student@college.edu",
-          department: "CSE",
-          year: 2,
-          status: true
-        },
-        hostel: {
-          hostelName: "Boys Hostel A",
-          roomNumber: "201"
-        },
-        books: [
-          { _id: "1", bookTitle: "Data Structures", status: "Issued" },
-          { _id: "2", bookTitle: "Algorithms", status: "Returned" }
-        ],
-        FeesHistorys: [
-          { _id: "1", amount: 15000, date: new Date().toISOString() },
-          { _id: "2", amount: 12000, date: new Date(Date.now() - 86400000).toISOString() }
-        ]
+    try {
+      const res = await fetch('/api/student-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: id })
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load details');
+      setSelectedStudent(data);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load details');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   useEffect(() => {
@@ -228,7 +224,7 @@ export default function StudentAdminDashboard() {
                   <tr key={student._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                        <div className="text-sm font-medium text-gray-900">{`${student.firstName || ''} ${student.lastName || ''}`.trim() || '—'}</div>
                         <div className="text-sm text-gray-500">{student.rollNumber || "—"}</div>
                       </div>
                     </td>

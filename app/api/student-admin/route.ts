@@ -26,7 +26,13 @@ export async function GET(req: NextRequest) {
     filters.year = searchParams.get("year");
   }
   if (searchParams.get("name")) {
-    filters.name = { $regex: searchParams.get("name"), $options: "i" };
+    const nameQuery = searchParams.get("name") || "";
+    filters.$or = [
+      { firstName: { $regex: nameQuery, $options: "i" } },
+      { lastName: { $regex: nameQuery, $options: "i" } },
+      { email: { $regex: nameQuery, $options: "i" } },
+      { rollNumber: { $regex: nameQuery, $options: "i" } },
+    ];
   }
 
   const students = await Student.find(filters)
@@ -56,15 +62,18 @@ export async function PATCH(req: NextRequest) {
   if (action === "approve") {
     // Only assign roll no. if student is 1st year
     if (student.year === 1 && !student.rollNumber) {
-      const yy = String(student.joiningYear).slice(-2);
-      const dept = student.department.toUpperCase();
+      const currentYear = new Date().getFullYear();
+      const yy = String(currentYear).slice(-2);
+      const dept = (student.department || "GEN").toUpperCase().slice(0, 3);
 
-      // Count existing approved students in same dept & year
+      // Count existing approved students in same dept & current year (by createdAt year)
+      const startOfYear = new Date(currentYear, 0, 1);
+      const endOfYear = new Date(currentYear + 1, 0, 1);
       const count = await Student.countDocuments({
         department: student.department,
-        joiningYear: student.joiningYear,
         year: 1,
         status: true,
+        createdAt: { $gte: startOfYear, $lt: endOfYear },
       });
 
       const serial = String(count + 1).padStart(3, "0");
