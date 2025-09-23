@@ -9,7 +9,7 @@ export default function HostelAdminDashboard() {
   const [filters, setFilters] = useState({ status: "unalloted", hostel: "", roomType: "", gender: "" });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [sortBy, setSortBy] = useState("name");
+  const [sortBy, setSortBy] = useState("firstName");
   const [order, setOrder] = useState("asc");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("students");
@@ -20,81 +20,52 @@ export default function HostelAdminDashboard() {
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
-    const query = new URLSearchParams({
-      ...filters,
-      page: String(page),
-      limit: String(limit),
-      sortBy,
-      order,
-    }).toString();
-
-    // Simulated API call
-    setTimeout(() => {
-      const mockStudents = Array.from({ length: 10 }, (_, i) => ({
-        _id: i.toString(),
-        rollNumber: `2023CS${1000 + i}`,
-        name: `Student ${i + 1}`,
-        department: ["CSE", "ECE", "MECH"][i % 3],
-        year: (i % 4) + 1,
-        gender: i % 2 === 0 ? "Male" : "Female",
-        roomPreference: i % 2 === 0 ? "AC" : "Non-AC",
-        messPreference: i % 2 === 0 ? "Veg" : "Non-Veg",
-        status: filters.status === "alloted" ? "alloted" : "unalloted",
-        hostel: filters.status === "alloted" ? {
-          hostelName: i % 2 === 0 ? "Boys Hostel A" : "Girls Hostel B",
-          roomNumber: `20${i + 1}`,
-          roomType: i % 2 === 0 ? "AC" : "Non-AC"
-        } : null
-      }));
-      setStudents(mockStudents);
-      setTotal(50);
+    try {
+      const query = new URLSearchParams({
+        ...filters,
+        page: String(page),
+        limit: String(limit),
+        sortBy,
+        order,
+      }).toString();
+      const res = await fetch(`/api/hostel-admin?${query}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch students');
+      setStudents(data.students || []);
+      setTotal(data.total || 0);
+    } catch (err) {
+      console.error(err);
+      setStudents([]);
+      setTotal(0);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   }, [filters, page, sortBy, order]);
 
   const fetchHostels = useCallback(async () => {
-    setLoading(true);
-    // Simulated API call
-    setTimeout(() => {
-      const mockHostels = [
-        {
-          _id: "1",
-          name: "Boys Hostel A",
-          type: "AC",
-          gender: "Male",
-          totalRooms: 50,
-          occupied: 35,
-          available: 15,
-          warden: "Dr. Sharma",
-          contact: "9876543210"
-        },
-        {
-          _id: "2",
-          name: "Girls Hostel B",
-          type: "Non-AC",
-          gender: "Female",
-          totalRooms: 40,
-          occupied: 30,
-          available: 10,
-          warden: "Dr. Patel",
-          contact: "9876543211"
-        }
-      ];
-      setHostels(mockHostels);
-      setLoading(false);
-    }, 1000);
+    // Placeholder: implement a real Hostel list route if needed
+    setHostels([]);
   }, []);
 
   const handleAllotHostel = async (studentId: string, hostelData: any) => {
     const confirm1 = confirm(`Allot ${hostelData.hostelName}, Room ${hostelData.roomNumber} to this student?`);
     if (!confirm1) return;
-    
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
+    try {
+      const res = await fetch('/api/hostel-admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, action: 'allot', ...hostelData })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to allot');
+      await fetchStudents();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to allot hostel');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleVacateHostel = async (studentId: string) => {
@@ -102,25 +73,43 @@ export default function HostelAdminDashboard() {
     if (!confirm1) return;
     const confirm2 = confirm("This action cannot be undone. Proceed to vacate?");
     if (!confirm2) return;
-
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
+    try {
+      const res = await fetch('/api/hostel-admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, action: 'vacate' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to vacate');
+      await fetchStudents();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to vacate hostel');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleChangeRoom = async (studentId: string, newRoomData: any) => {
     const confirm1 = confirm(`Change room to ${newRoomData.hostelName}, Room ${newRoomData.roomNumber}?`);
     if (!confirm1) return;
-
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
+    try {
+      const res = await fetch('/api/hostel-admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, action: 'change', ...newRoomData })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to change room');
+      await fetchStudents();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to change room');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleAddRoom = async () => {
@@ -129,45 +118,28 @@ export default function HostelAdminDashboard() {
       alert("Please fill all required fields");
       return;
     }
-
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setShowRoomModal(false);
-      setNewRoom({ hostelName: "", roomNumber: "", roomType: "", capacity: 2, amenities: [] });
-      fetchHostels();
-      setLoading(false);
-    }, 500);
+    // TODO: Implement a real rooms API; for now just close modal and reset form.
+    setShowRoomModal(false);
+    setNewRoom({ hostelName: "", roomNumber: "", roomType: "", capacity: 2, amenities: [] });
   };
 
   const viewStudentDetails = async (id: string) => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSelectedStudent({
-        student: {
-          _id: id,
-          name: "Student Details",
-          rollNumber: "2023CS1001",
-          email: "student@college.edu",
-          department: "CSE",
-          year: 2,
-          gender: "Male",
-          phone: "9876543210"
-        },
-        hostel: {
-          hostelName: "Boys Hostel A",
-          roomNumber: "201",
-          roomType: "AC",
-          allotmentDate: new Date().toISOString()
-        },
-        issues: [
-          { _id: "1", type: "Maintenance", description: "AC not working", status: "Pending", date: new Date().toISOString() },
-          { _id: "2", type: "Cleaning", description: "Room needs cleaning", status: "Resolved", date: new Date(Date.now() - 86400000).toISOString() }
-        ]
+    try {
+      const res = await fetch('/api/hostel-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: id })
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load details');
+      setSelectedStudent(data);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load student details');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   useEffect(() => {
@@ -357,7 +329,7 @@ export default function HostelAdminDashboard() {
                       <tr key={student._id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
-                            <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                            <div className="text-sm font-medium text-gray-900">{`${student.firstName || ''} ${student.lastName || ''}`.trim() || '—'}</div>
                             <div className="text-sm text-gray-500">{student.rollNumber} • {student.department}</div>
                           </div>
                         </td>
@@ -591,7 +563,7 @@ export default function HostelAdminDashboard() {
             <div className="bg-gradient-to-r from-green-600 to-blue-600 p-6 text-white">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold">{selectedStudent.student.name}</h2>
+                  <h2 className="text-2xl font-bold">{`${selectedStudent.student.firstName || ''} ${selectedStudent.student.lastName || ''}`.trim() || 'Student Details'}</h2>
                   <p className="text-green-100">{selectedStudent.student.rollNumber} • {selectedStudent.student.department}</p>
                 </div>
                 <button onClick={() => setSelectedStudent(null)} className="text-white hover:text-green-200">
