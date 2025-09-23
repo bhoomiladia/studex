@@ -93,7 +93,7 @@ export default function PortalPage() {
         return (
           <Card
             key={index}
-            className={`flex flex-col justify-between p-8 h-[380px] hover:shadow-2xl transition-all duration-300 cursor-pointer group border-2 ${role.borderColor} bg-white rounded-xl`}
+            className={`flex flex-col justify-between p-8 h-[380px] hover:shadow-2xl transition-all duration-300 group border-2 ${role.borderColor} bg-white rounded-xl`}
           >
             <div className="flex flex-col items-center text-center flex-1">
               <div
@@ -104,12 +104,13 @@ export default function PortalPage() {
               <h3 className="text-2xl font-bold text-gray-900 mb-2">{role.title}</h3>
               <p className="text-gray-600 leading-relaxed">{role.description}</p>
             </div>
-            <Button
-              className={`mt-6 w-full ${role.color} text-white font-bold py-3 rounded-lg group-hover:shadow-lg transition-all duration-300`}
+            <a href="/auth-page">            <Button
+              className={`mt-6 w-full ${role.color} text-white cursor-pointer font-bold py-3 rounded-lg group-hover:shadow-lg transition-all duration-300`}
             >
               LogIn as {role.title}
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Button>
+            </a>
           </Card>
         );
       })}
