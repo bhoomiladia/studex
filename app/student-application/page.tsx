@@ -47,9 +47,6 @@ export default function StudentApplicationForm() {
         break;
       case 3:
         if (!formData.hostel) return "Please select hostel requirement.";
-        if (formData.hostel === "yes" && formData.year > 1) {
-          if (!formData.hostelName || !formData.roomNumber) return "Hostel Name and Room Number are required.";
-        }
         if (!formData.messPreference || !formData.roomPreference) return "Please select mess and room preferences.";
         break;
       case 4:
@@ -262,19 +259,9 @@ export default function StudentApplicationForm() {
                           </SelectContent>
                         </Select>
                       </div>
-                      {formData.hostel === "yes" && formData.year > 1 && (
+                      {formData.hostel === "yes" &&(
                         <>
-                          <div>
-                            <Label htmlFor="hostelName" className="text-sm font-medium">Hostel Name</Label>
-                            <Input name="hostelName" value={formData.hostelName} onChange={handleChange} className="h-10" />
-                          </div>
-                          <div>
-                            <Label htmlFor="roomNumber" className="text-sm font-medium">Room Number</Label>
-                            <Input name="roomNumber" value={formData.roomNumber} onChange={handleChange} className="h-10" />
-                          </div>
-                        </>
-                      )}
-                      <div>
+                        <div>
                         <Label htmlFor="messPreference" className="text-sm font-medium">Mess Preference</Label>
                         <Select value={formData.messPreference} onValueChange={(val) => setFormData({ ...formData, messPreference: val })}>
                           <SelectTrigger className="h-10"><SelectValue placeholder="Select Mess" /></SelectTrigger>
@@ -295,7 +282,10 @@ export default function StudentApplicationForm() {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
+                    </>
+                      )}
+                      
+                      </div>
                   )}
 
                   {/* Step 4: Guardian & Emergency */}
