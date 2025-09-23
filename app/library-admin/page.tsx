@@ -1,18 +1,19 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Search, Filter, Book, User, Calendar, CheckCircle, XCircle, Plus, Edit, RotateCcw, Download, Eye, Loader2, BarChart3, Users, BookOpen, Clock } from "lucide-react";
+import { Search, Filter, Book, User, Calendar, CheckCircle, XCircle, Plus, Edit, RotateCcw, Download, Eye, Loader2, BarChart3, Users, BookOpen, Clock, Trash2 } from "lucide-react";
 
 export default function LibraryAdminDashboard() {
   const [books, setBooks] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState("books");
+  const [activeTab, setActiveTab] = useState("students");
   const [filters, setFilters] = useState({ status: "available", category: "", search: "" });
   const [loading, setLoading] = useState(false);
   const [showBookModal, setShowBookModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [selectedBook, setSelectedBook] = useState<any>(null);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [studentSearch, setStudentSearch] = useState("");
   const [newBook, setNewBook] = useState({
     title: "",
     author: "",
@@ -65,7 +66,9 @@ export default function LibraryAdminDashboard() {
         department: ["CSE", "ECE", "MECH"][i % 3],
         year: (i % 4) + 1,
         booksIssued: i % 3,
-        hasOverdue: i % 5 === 0
+        hasOverdue: i % 5 === 0,
+        email: `student${i + 1}@college.edu`,
+        phone: `98765${10000 + i}`
       }));
       setStudents(mockStudents);
 
@@ -92,18 +95,6 @@ export default function LibraryAdminDashboard() {
       fetchData();
       setLoading(false);
     }, 1000);
-  };
-
-  const handleReturnBook = async (transactionId: string) => {
-    const confirm = window.confirm("Mark this book as returned?");
-    if (!confirm) return;
-
-    setLoading(true);
-    setTimeout(() => {
-      alert("Book returned successfully!");
-      fetchData();
-      setLoading(false);
-    }, 500);
   };
 
   const handleAddBook = async () => {
@@ -136,12 +127,31 @@ export default function LibraryAdminDashboard() {
     setShowBookModal(true);
   };
 
+  const handleDeleteBook = async (bookId: string) => {
+    const confirm = window.confirm("Are you sure you want to delete this book?");
+    if (!confirm) return;
+
+    setLoading(true);
+    setTimeout(() => {
+      setBooks(books.filter(book => book._id !== bookId));
+      alert("Book deleted successfully!");
+      setLoading(false);
+    }, 500);
+  };
+
+  const filteredStudents = students.filter(student =>
+    student.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    student.rollNumber.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    student.department.toLowerCase().includes(studentSearch.toLowerCase())
+  );
+
   const StatusBadge = ({ status }: { status: string }) => {
     const config = {
       Available: { color: "bg-green-100 text-green-800", icon: CheckCircle },
       Issued: { color: "bg-blue-100 text-blue-800", icon: User },
       Overdue: { color: "bg-red-100 text-red-800", icon: XCircle },
-      Returned: { color: "bg-gray-100 text-gray-800", icon: CheckCircle }
+      Returned: { color: "bg-gray-100 text-gray-800", icon: CheckCircle },
+      Clear: { color: "bg-green-100 text-green-800", icon: CheckCircle }
     };
     
     const { color, icon: Icon } = config[status as keyof typeof config] || config.Available;
@@ -275,10 +285,21 @@ export default function LibraryAdminDashboard() {
         <div className="bg-white rounded-2xl shadow-sm border p-2 mb-6">
           <div className="flex space-x-1">
             <button
+              onClick={() => setActiveTab("students")}
+              className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
+                activeTab === "students"
+                  ? "bg-blue-100 text-blue-700 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <Users className="w-5 h-5 mx-auto mb-1" />
+              Student Management
+            </button>
+            <button
               onClick={() => setActiveTab("books")}
               className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
                 activeTab === "books"
-                  ? "bg-blue-100 text-blue-700 shadow-sm"
+                  ? "bg-green-100 text-green-700 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -289,23 +310,12 @@ export default function LibraryAdminDashboard() {
               onClick={() => setActiveTab("transactions")}
               className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
                 activeTab === "transactions"
-                  ? "bg-green-100 text-green-700 shadow-sm"
+                  ? "bg-purple-100 text-purple-700 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
               <RotateCcw className="w-5 h-5 mx-auto mb-1" />
               Transactions
-            </button>
-            <button
-              onClick={() => setActiveTab("students")}
-              className={`flex-1 py-3 px-4 rounded-lg text-center font-medium transition-all ${
-                activeTab === "students"
-                  ? "bg-purple-100 text-purple-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              <Users className="w-5 h-5 mx-auto mb-1" />
-              Student Management
             </button>
             <button
               onClick={() => setActiveTab("analytics")}
@@ -321,13 +331,85 @@ export default function LibraryAdminDashboard() {
           </div>
         </div>
 
+        {/* Student Management Tab */}
+        {activeTab === "students" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Student Management</h3>
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search students by name, roll no, department..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Books Issued</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredStudents.map((student) => (
+                      <tr key={student._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="font-medium">{student.name}</div>
+                          <div className="text-sm text-gray-500">{student.rollNumber}</div>
+                          <div className="text-xs text-gray-400">{student.email}</div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{student.department}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900">Year {student.year}</td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {student.booksIssued} books
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {student.hasOverdue ? (
+                            <StatusBadge status="Overdue" />
+                          ) : (
+                            <StatusBadge status="Clear" />
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <button 
+                            onClick={() => {
+                              setSelectedStudent(student);
+                              setShowIssueModal(true);
+                            }}
+                            className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                          >
+                            <Book className="w-4 h-4 mr-1" />
+                            Issue Book
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Book Management Tab */}
         {activeTab === "books" && (
           <div className="space-y-6">
-            {/* Filters and Actions */}
             <div className="bg-white rounded-2xl shadow-sm border p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Book Inventory</h3>
+                <h3 className="text-lg font-semibold">Book Management</h3>
                 <button 
                   onClick={() => setShowBookModal(true)}
                   className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -337,40 +419,6 @@ export default function LibraryAdminDashboard() {
                 </button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search books..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                  />
-                </div>
-                
-                <select 
-                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="available">Available</option>
-                  <option value="issued">Issued</option>
-                  <option value="all">All Books</option>
-                </select>
-                
-                <select 
-                  onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All Categories</option>
-                  <option value="Computer Science">Computer Science</option>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="Physics">Physics</option>
-                  <option value="Literature">Literature</option>
-                  <option value="Engineering">Engineering</option>
-                </select>
-              </div>
-
-              {/* Books Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {books.map((book) => (
                   <div key={book._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -390,20 +438,18 @@ export default function LibraryAdminDashboard() {
                     
                     <div className="flex space-x-2">
                       <button 
-                        onClick={() => {
-                          setSelectedBook(book);
-                          setShowIssueModal(true);
-                        }}
-                        disabled={book.availableCopies === 0}
-                        className="flex-1 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm"
-                      >
-                        Issue Book
-                      </button>
-                      <button 
                         onClick={() => handleEditBook(book)}
                         className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
                       >
+                        <Edit className="w-4 h-4 inline mr-1" />
                         Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteBook(book._id)}
+                        className="flex-1 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        <Trash2 className="w-4 h-4 inline mr-1" />
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -431,7 +477,6 @@ export default function LibraryAdminDashboard() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -459,73 +504,6 @@ export default function LibraryAdminDashboard() {
                         </td>
                         <td className="px-6 py-4">
                           <StatusBadge status={transaction.status} />
-                        </td>
-                        <td className="px-6 py-4">
-                          {transaction.type === "Issue" && transaction.status !== "Returned" && (
-                            <button
-                              onClick={() => handleReturnBook(transaction._id)}
-                              className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                            >
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Return
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Student Management Tab */}
-        {activeTab === "students" && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Student Records</h3>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Books Issued</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {students.map((student) => (
-                      <tr key={student._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-sm text-gray-500">{student.rollNumber}</div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{student.department}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">Year {student.year}</td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {student.booksIssued} books
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {student.hasOverdue ? (
-                            <StatusBadge status="Overdue" />
-                          ) : (
-                            <StatusBadge status="Clear" />
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <button className="inline-flex items-center px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm">
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </button>
                         </td>
                       </tr>
                     ))}
