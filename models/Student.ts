@@ -18,6 +18,7 @@ const StudentSchema = new Schema(
     rollNumber: { type: String, unique: true },
     password: { type: String, required: true },
     confirmPassword: { type: String },
+    status: { type: Boolean, default: false },
     // Hostel relation
     hostel: { type: Boolean, default: false },
     hostelName: { type: Schema.Types.ObjectId, ref: "Hostel" },
@@ -29,7 +30,7 @@ const StudentSchema = new Schema(
     guardianName: { type: String },
     guardianPhone: { type: String },
     emergencyContact: { type: String },
-
+    
     // Education
     previousSchool: { type: String },
 
