@@ -404,61 +404,159 @@ export default function LibraryAdminDashboard() {
           </div>
         )}
 
-        {/* Book Management Tab */}
-        {activeTab === "books" && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Book Management</h3>
-                <button 
-                  onClick={() => setShowBookModal(true)}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Book
-                </button>
+       {/* Book Management Tab */}
+{activeTab === "books" && (
+  <div className="space-y-6">
+    <div className="bg-white rounded-2xl shadow-sm border p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">Book Management</h3>
+        <button 
+          onClick={() => setShowBookModal(true)}
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Add New Book
+        </button>
+      </div>
+      
+      {/* Search and Filter Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search books by title, author, ISBN..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          />
+        </div>
+        
+        <select 
+          value={filters.status}
+          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Status</option>
+          <option value="available">Available</option>
+          <option value="issued">Issued</option>
+        </select>
+        
+        <select 
+          value={filters.category}
+          onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Categories</option>
+          <option value="Computer Science">Computer Science</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Physics">Physics</option>
+          <option value="Literature">Literature</option>
+          <option value="Engineering">Engineering</option>
+        </select>
+      </div>
+
+      {/* Filtered Books Count */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {books.filter(book => {
+          const matchesSearch = !filters.search || 
+            book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+            book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
+            book.isbn.toLowerCase().includes(filters.search.toLowerCase());
+          
+          const matchesStatus = filters.status === "all" || 
+            (filters.status === "available" && book.status === "Available") ||
+            (filters.status === "issued" && book.status === "Issued");
+          
+          const matchesCategory = !filters.category || book.category === filters.category;
+          
+          return matchesSearch && matchesStatus && matchesCategory;
+        }).length} of {books.length} books
+      </div>
+
+      {/* Books Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {books
+          .filter(book => {
+            const matchesSearch = !filters.search || 
+              book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+              book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
+              book.isbn.toLowerCase().includes(filters.search.toLowerCase());
+            
+            const matchesStatus = filters.status === "all" || 
+              (filters.status === "available" && book.status === "Available") ||
+              (filters.status === "issued" && book.status === "Issued");
+            
+            const matchesCategory = !filters.category || book.category === filters.category;
+            
+            return matchesSearch && matchesStatus && matchesCategory;
+          })
+          .map((book) => (
+            <div key={book._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-3">
+                <CategoryBadge category={book.category} />
+                <StatusBadge status={book.status} />
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {books.map((book) => (
-                  <div key={book._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-3">
-                      <CategoryBadge category={book.category} />
-                      <StatusBadge status={book.status} />
-                    </div>
-                    
-                    <h4 className="font-semibold text-lg mb-2 line-clamp-2">{book.title}</h4>
-                    <p className="text-gray-600 text-sm mb-1">by {book.author}</p>
-                    <p className="text-gray-500 text-xs mb-3">ISBN: {book.isbn}</p>
-                    
-                    <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
-                      <span>Total Copies: {book.totalCopies}</span>
-                      <span>Available: {book.availableCopies}</span>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={() => handleEditBook(book)}
-                        className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                      >
-                        <Edit className="w-4 h-4 inline mr-1" />
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteBook(book._id)}
-                        className="flex-1 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                      >
-                        <Trash2 className="w-4 h-4 inline mr-1" />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
+              <h4 className="font-semibold text-lg mb-2 line-clamp-2">{book.title}</h4>
+              <p className="text-gray-600 text-sm mb-1">by {book.author}</p>
+              <p className="text-gray-500 text-xs mb-3">ISBN: {book.isbn}</p>
+              
+              <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
+                <span>Total Copies: {book.totalCopies}</span>
+                <span>Available: {book.availableCopies}</span>
+              </div>
+              
+              <div className="flex space-x-2">
+                <button 
+                  onClick={() => handleEditBook(book)}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                >
+                  <Edit className="w-4 h-4 inline mr-1" />
+                  Edit
+                </button>
+                <button 
+                  onClick={() => handleDeleteBook(book._id)}
+                  className="flex-1 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                >
+                  <Trash2 className="w-4 h-4 inline mr-1" />
+                  Delete
+                </button>
               </div>
             </div>
-          </div>
-        )}
+          ))
+        }
+      </div>
 
+      {/* No Results Message */}
+      {books.filter(book => {
+        const matchesSearch = !filters.search || 
+          book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+          book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
+          book.isbn.toLowerCase().includes(filters.search.toLowerCase());
+        
+        const matchesStatus = filters.status === "all" || 
+          (filters.status === "available" && book.status === "Available") ||
+          (filters.status === "issued" && book.status === "Issued");
+        
+        const matchesCategory = !filters.category || book.category === filters.category;
+        
+        return matchesSearch && matchesStatus && matchesCategory;
+      }).length === 0 && (
+        <div className="text-center py-8 text-gray-500">
+          <Book className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p>No books found matching your search criteria.</p>
+          <button 
+            onClick={() => setFilters({ status: "all", category: "", search: "" })}
+            className="mt-2 text-blue-600 hover:text-blue-700"
+          >
+            Clear filters
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+)}
         {/* Transactions Tab */}
         {activeTab === "transactions" && (
           <div className="space-y-6">
