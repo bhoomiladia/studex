@@ -93,12 +93,28 @@ export async function PATCH(req: NextRequest) {
         hostelName,
         roomNumber,
         occupancy: occupancy ?? 1,
-        currentVacancy: 0,
+        currentVacancy: occupancy ?? 1,
         wardenName: '',
         isAC: (roomType || '').toLowerCase() === 'ac',
         costPerMonth: costPerMonth ?? 0,
       });
     }
+
+    // If changing from an existing room, increment old room vacancy
+    if (action === 'change' && student.hostelName) {
+      const oldHostel = await Hostel.findById(student.hostelName);
+      if (oldHostel) {
+        oldHostel.currentVacancy = Math.min((oldHostel.currentVacancy || 0) + 1, oldHostel.occupancy);
+        await oldHostel.save();
+      }
+    }
+
+    // Decrement new room vacancy if available
+    if ((hostelDoc.currentVacancy ?? 0) <= 0) {
+      return NextResponse.json({ error: 'Selected room is full' }, { status: 400 });
+    }
+    hostelDoc.currentVacancy = Math.max((hostelDoc.currentVacancy || 0) - 1, 0);
+    await hostelDoc.save();
 
     student.hostelName = hostelDoc._id; // linking by ObjectId per schema
     student.roomNumber = roomNumber;
@@ -109,6 +125,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (action === 'vacate') {
+    // Increment vacancy for the current room
+    if (student.hostelName) {
+      const curHostel = await Hostel.findById(student.hostelName);
+      if (curHostel) {
+        curHostel.currentVacancy = Math.min((curHostel.currentVacancy || 0) + 1, curHostel.occupancy);
+        await curHostel.save();
+      }
+    }
     student.hostelName = null;
     student.roomNumber = undefined;
     await student.save();

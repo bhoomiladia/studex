@@ -6,6 +6,12 @@ export default function HostelAdminDashboard() {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [hostels, setHostels] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [showAddHostelModal, setShowAddHostelModal] = useState(false);
+  const [newHostel, setNewHostel] = useState({ hostelName: "", wardenName: "", firstRoomNumber: "", capacity: 2, roomType: "", costPerMonth: 0 });
+  const [showAllotModal, setShowAllotModal] = useState(false);
+  const [allotTarget, setAllotTarget] = useState<{ studentId: string, mode: 'allot'|'change' } | null>(null);
+  const [allotForm, setAllotForm] = useState({ hostelName: "", roomNumber: "", roomType: "" });
   const [filters, setFilters] = useState({ status: "unalloted", hostel: "", roomType: "", gender: "" });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -14,7 +20,9 @@ export default function HostelAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("students");
   const [showRoomModal, setShowRoomModal] = useState(false);
-  const [newRoom, setNewRoom] = useState({ hostelName: "", roomNumber: "", roomType: "", capacity: 2, amenities: [] });
+  const [newRoom, setNewRoom] = useState({ hostelName: "", roomNumber: "", roomType: "", capacity: 2, costPerMonth: 0, amenities: [] });
+  const [showEditRoomModal, setShowEditRoomModal] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<any>(null);
 
   const limit = 10;
 
@@ -43,8 +51,60 @@ export default function HostelAdminDashboard() {
   }, [filters, page, sortBy, order]);
 
   const fetchHostels = useCallback(async () => {
-    // Placeholder: implement a real Hostel list route if needed
-    setHostels([]);
+    try {
+      const res = await fetch('/api/hostels');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch hostels');
+      setHostels(data.hostels || []);
+    } catch (err) {
+      console.error(err);
+      setHostels([]);
+    }
+  }, []);
+
+  const handleAddHostel = async () => {
+    if (!newHostel.hostelName || !newHostel.firstRoomNumber || !newHostel.roomType) {
+      alert('Please fill hostel name, first room number and room type');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/hostels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostelName: newHostel.hostelName,
+          roomNumber: newHostel.firstRoomNumber,
+          occupancy: Number(newHostel.capacity),
+          isAC: newHostel.roomType === 'AC',
+          costPerMonth: Number(newHostel.costPerMonth),
+          wardenName: newHostel.wardenName || undefined,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to add hostel');
+      setShowAddHostelModal(false);
+      setNewHostel({ hostelName: "", wardenName: "", firstRoomNumber: "", capacity: 2, roomType: "", costPerMonth: 0 });
+      await fetchHostels();
+      await fetchRooms();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add hostel');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRooms = useCallback(async () => {
+    try {
+      const res = await fetch('/api/hostels?rooms=1');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch rooms');
+      setRooms(data.rooms || []);
+    } catch (err) {
+      console.error(err);
+      setRooms([]);
+    }
   }, []);
 
   const handleAllotHostel = async (studentId: string, hostelData: any) => {
@@ -118,9 +178,84 @@ export default function HostelAdminDashboard() {
       alert("Please fill all required fields");
       return;
     }
-    // TODO: Implement a real rooms API; for now just close modal and reset form.
-    setShowRoomModal(false);
-    setNewRoom({ hostelName: "", roomNumber: "", roomType: "", capacity: 2, amenities: [] });
+    setLoading(true);
+    try {
+      const res = await fetch('/api/hostels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostelName: newRoom.hostelName,
+          roomNumber: newRoom.roomNumber,
+          occupancy: Number(newRoom.capacity),
+          isAC: newRoom.roomType === 'AC',
+          costPerMonth: Number(newRoom.costPerMonth),
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to add room');
+      setShowRoomModal(false);
+      setNewRoom({ hostelName: "", roomNumber: "", roomType: "", capacity: 2, costPerMonth: 0, amenities: [] });
+      await fetchRooms();
+      await fetchHostels();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add room');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRoom = async (hostelName: string, roomNumber: string) => {
+    const confirm1 = confirm(`Delete room ${roomNumber} from ${hostelName}?`);
+    if (!confirm1) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/hostels?hostelName=${encodeURIComponent(hostelName)}&roomNumber=${encodeURIComponent(roomNumber)}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete room');
+      await fetchRooms();
+      await fetchHostels();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete room');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenEditRoom = (room: any) => {
+    setEditingRoom({ ...room });
+    setShowEditRoomModal(true);
+  };
+
+  const handleSaveEditRoom = async () => {
+    if (!editingRoom) return;
+    setLoading(true);
+    try {
+      const updates: any = {
+        occupancy: Number(editingRoom.occupancy),
+        currentVacancy: Number(editingRoom.currentVacancy),
+        isAC: !!editingRoom.isAC,
+        wardenName: editingRoom.wardenName || '',
+        costPerMonth: Number(editingRoom.costPerMonth || 0),
+      };
+      const res = await fetch('/api/hostels', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hostelName: editingRoom.hostelName, roomNumber: editingRoom.roomNumber, updates })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to update room');
+      setShowEditRoomModal(false);
+      setEditingRoom(null);
+      await fetchRooms();
+      await fetchHostels();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update room');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const viewStudentDetails = async (id: string) => {
@@ -145,10 +280,12 @@ export default function HostelAdminDashboard() {
   useEffect(() => {
     if (activeTab === "students") {
       fetchStudents();
-    } else {
+    } else if (activeTab === 'hostels') {
       fetchHostels();
+    } else if (activeTab === 'rooms') {
+      fetchRooms();
     }
-  }, [activeTab, fetchStudents, fetchHostels]);
+  }, [activeTab, fetchStudents, fetchHostels, fetchRooms]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -175,6 +312,113 @@ export default function HostelAdminDashboard() {
           <UserPlus className="w-4 h-4 mr-1" />
           Unalloted
         </>
+      )}
+
+      {/* Add Hostel Modal */}
+      {showAddHostelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddHostelModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-green-600 to-blue-600 p-6 text-white rounded-t-2xl">
+              <h2 className="text-xl font-bold">Add Hostel</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hostel Name</label>
+                <input type="text" value={newHostel.hostelName} onChange={(e) => setNewHostel({ ...newHostel, hostelName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Boys Hostel A" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Warden Name</label>
+                <input type="text" value={newHostel.wardenName} onChange={(e) => setNewHostel({ ...newHostel, wardenName: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g., Dr. Sharma" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Room No.</label>
+                  <input type="text" value={newHostel.firstRoomNumber} onChange={(e) => setNewHostel({ ...newHostel, firstRoomNumber: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                  <input type="number" value={newHostel.capacity} onChange={(e) => setNewHostel({ ...newHostel, capacity: parseInt(e.target.value) || 1 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" min={1} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Room Type</label>
+                  <select value={newHostel.roomType} onChange={(e) => setNewHostel({ ...newHostel, roomType: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select</option>
+                    <option value="AC">AC</option>
+                    <option value="Non-AC">Non-AC</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cost Per Month (₹)</label>
+                  <input type="number" value={newHostel.costPerMonth} onChange={(e) => setNewHostel({ ...newHostel, costPerMonth: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" min={0} />
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
+              <button onClick={() => setShowAddHostelModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+              <button onClick={handleAddHostel} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Add Hostel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Allot / Change Room Modal */}
+      {showAllotModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowAllotModal(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white rounded-t-2xl">
+              <h2 className="text-xl font-bold">{allotTarget?.mode === 'change' ? 'Change Room' : 'Allot Room'}</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hostel</label>
+                <select
+                  value={allotForm.hostelName}
+                  onChange={(e) => { setAllotForm({ hostelName: e.target.value, roomNumber: '', roomType: '' }); }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select hostel</option>
+                  {Array.from(new Set(rooms.filter((r: any) => (r.currentVacancy ?? 0) > 0).map((r: any) => r.hostelName))).map((hn: any) => (
+                    <option key={hn} value={hn}>{hn}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
+                <select
+                  value={allotForm.roomNumber}
+                  onChange={(e) => {
+                    const rn = e.target.value; 
+                    const room = rooms.find((r: any) => r.hostelName === allotForm.hostelName && r.roomNumber === rn);
+                    setAllotForm({ ...allotForm, roomNumber: rn, roomType: room?.isAC ? 'AC' : 'Non-AC' });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={!allotForm.hostelName}
+                >
+                  <option value="">Select room</option>
+                  {rooms
+                    .filter((r: any) => r.hostelName === allotForm.hostelName && (r.currentVacancy ?? 0) > 0)
+                    .map((r: any) => (
+                      <option key={r.roomNumber} value={r.roomNumber}>
+                        {r.roomNumber} • {r.isAC ? 'AC' : 'Non-AC'} • Avail: {r.currentVacancy}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
+              <button onClick={() => setShowAllotModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+              <button onClick={submitAllotChange} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+            </div>
+          </div>
+        </div>
       )}
     </span>
   );
@@ -353,7 +597,7 @@ export default function HostelAdminDashboard() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           {student.status === "unalloted" ? (
                             <button 
-                              onClick={() => handleAllotHostel(student._id, { hostelName: "Boys Hostel A", roomNumber: "201" })}
+                              onClick={() => { setAllotTarget({ studentId: student._id, mode: 'allot' }); setShowAllotModal(true); fetchRooms(); }}
                               className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                             >
                               <UserPlus className="w-4 h-4 mr-1" />
@@ -362,7 +606,7 @@ export default function HostelAdminDashboard() {
                           ) : (
                             <>
                               <button 
-                                onClick={() => handleChangeRoom(student._id, { hostelName: "Boys Hostel B", roomNumber: "301" })}
+                                onClick={() => { setAllotTarget({ studentId: student._id, mode: 'change' }); setShowAllotModal(true); fetchRooms(); }}
                                 className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                               >
                                 <Edit className="w-4 h-4 mr-1" />
@@ -425,59 +669,66 @@ export default function HostelAdminDashboard() {
 
         {/* Hostel Overview Tab */}
         {activeTab === "hostels" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {hostels.map((hostel) => (
-              <div key={hostel._id} className="bg-white rounded-2xl shadow-sm border p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-gray-900">{hostel.name}</h3>
-                  <RoomTypeBadge type={hostel.type} />
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Hostel Overview</h2>
+              <button onClick={() => setShowAddHostelModal(true)} className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Hostel
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {hostels.map((hostel: any) => (
+                <div key={hostel._id} className="bg-white rounded-2xl shadow-sm border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-bold text-gray-900">{hostel.hostelName}</h3>
+                    <RoomTypeBadge type={hostel.type} />
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Total Rooms:</span>
+                      <span className="font-medium">{hostel.totalRooms}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Occupied:</span>
+                      <span className="font-medium text-orange-600">{hostel.occupied}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Available:</span>
+                      <span className="font-medium text-green-600">{hostel.available}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Warden:</span>
+                      <span className="font-medium">{hostel.wardenName || '—'}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Avg Cost/Month:</span>
+                      <span className="font-medium">₹{hostel.avgCostPerMonth}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                    <div className="w-full bg-gray-200 rounded-full h-2 mr-4">
+                      <div 
+                        className="bg-green-600 h-2 rounded-full" 
+                        style={{ width: `${hostel.totalRooms ? (hostel.occupied / hostel.totalRooms) * 100 : 0}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-500 mr-auto">
+                      Occupancy: {hostel.totalRooms ? Math.round((hostel.occupied / hostel.totalRooms) * 100) : 0}%
+                    </div>
+                    <button onClick={() => { setShowRoomModal(true); setNewRoom({ ...newRoom, hostelName: hostel.hostelName }); }} className="ml-4 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                      Add Room
+                    </button>
+                  </div>
                 </div>
-                
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Gender:</span>
-                    <GenderBadge gender={hostel.gender} />
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Total Rooms:</span>
-                    <span className="font-medium">{hostel.totalRooms}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Occupied:</span>
-                    <span className="font-medium text-orange-600">{hostel.occupied}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Available:</span>
-                    <span className="font-medium text-green-600">{hostel.available}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Warden:</span>
-                    <span className="font-medium">{hostel.warden}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Contact:</span>
-                    <span className="font-medium">{hostel.contact}</span>
-                  </div>
-                </div>
-                
-                <div className="mt-4 pt-4 border-t">
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-600 h-2 rounded-full" 
-                      style={{ width: `${(hostel.occupied / hostel.totalRooms) * 100}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1 text-center">
-                    Occupancy: {Math.round((hostel.occupied / hostel.totalRooms) * 100)}%
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
@@ -496,44 +747,42 @@ export default function HostelAdminDashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Sample Room Cards */}
-              {[1, 2, 3, 4, 5, 6].map((room) => (
-                <div key={room} className="bg-white rounded-2xl shadow-sm border p-6">
+              {rooms.map((room: any) => (
+                <div key={`${room.hostelName}-${room.roomNumber}`} className="bg-white rounded-2xl shadow-sm border p-6">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-bold">Room 20{room}</h3>
-                    <RoomTypeBadge type={room % 2 === 0 ? "AC" : "Non-AC"} />
+                    <h3 className="text-lg font-bold">Room {room.roomNumber}</h3>
+                    <RoomTypeBadge type={room.isAC ? "AC" : "Non-AC"} />
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Hostel:</span>
-                      <span className="font-medium">Boys Hostel A</span>
+                      <span className="font-medium">{room.hostelName}</span>
                     </div>
                     
                     <div className="flex justify-between">
                       <span className="text-gray-600">Capacity:</span>
-                      <span className="font-medium">2 Students</span>
+                      <span className="font-medium">{room.occupancy} Students</span>
                     </div>
                     
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Occupied:</span>
-                      <span className="font-medium">{room % 3 === 0 ? "2" : "1"}</span>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Status:</span>
-                      <span className={`font-medium ${room % 3 === 0 ? "text-red-600" : "text-green-600"}`}>
-                        {room % 3 === 0 ? "Full" : "Available"}
+                      <span className="text-gray-600">Available:</span>
+                      <span className={`font-medium ${room.currentVacancy === 0 ? "text-red-600" : "text-green-600"}`}>
+                        {room.currentVacancy}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cost/Month:</span>
+                      <span className="font-medium">₹{room.costPerMonth}</span>
                     </div>
                   </div>
                   
                   <div className="mt-4 flex space-x-2">
-                    <button className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                    <button onClick={() => handleOpenEditRoom(room)} className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
                       Edit Details
                     </button>
-                    <button className="flex-1 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">
-                      View Occupants
+                    <button onClick={() => handleDeleteRoom(room.hostelName, room.roomNumber)} className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+                      Delete Room
                     </button>
                   </div>
                 </div>
@@ -692,6 +941,16 @@ export default function HostelAdminDashboard() {
                   max="4"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cost Per Month (₹)</label>
+                <input
+                  type="number"
+                  value={newRoom.costPerMonth}
+                  onChange={(e) => setNewRoom({ ...newRoom, costPerMonth: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                />
+              </div>
             </div>
             
             <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
@@ -707,6 +966,52 @@ export default function HostelAdminDashboard() {
               >
                 Add Room
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Room Modal */}
+      {showEditRoomModal && editingRoom && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowEditRoomModal(false)}>
+          <div 
+            className="bg-white rounded-2xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white rounded-t-2xl">
+              <h2 className="text-xl font-bold">Edit Room - {editingRoom.hostelName} {editingRoom.roomNumber}</h2>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                  <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" value={editingRoom.occupancy}
+                    onChange={(e) => setEditingRoom({ ...editingRoom, occupancy: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Available</label>
+                  <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" value={editingRoom.currentVacancy}
+                    onChange={(e) => setEditingRoom({ ...editingRoom, currentVacancy: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cost Per Month (₹)</label>
+                  <input type="number" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" value={editingRoom.costPerMonth}
+                    onChange={(e) => setEditingRoom({ ...editingRoom, costPerMonth: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="flex items-center gap-2 mt-6">
+                  <input id="edit-isac" type="checkbox" checked={!!editingRoom.isAC} onChange={(e) => setEditingRoom({ ...editingRoom, isAC: e.target.checked })} />
+                  <label htmlFor="edit-isac" className="text-sm">AC Room</label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Warden Name</label>
+                <input type="text" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" value={editingRoom.wardenName || ''}
+                  onChange={(e) => setEditingRoom({ ...editingRoom, wardenName: e.target.value })} />
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
+              <button onClick={() => setShowEditRoomModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+              <button onClick={handleSaveEditRoom} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
             </div>
           </div>
         </div>
