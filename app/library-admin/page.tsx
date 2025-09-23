@@ -80,15 +80,29 @@ export default function LibraryAdminDashboard() {
     fetchData();
   }, [fetchData]);
 
-  const handleIssueBook = async (bookId: string, studentId: string) => {
+  const handleIssueBook = async () => {
     if (!selectedStudent) {
       alert("Please select a student first");
       return;
     }
 
+    if (!selectedBook) {
+      alert("Please select a book to issue");
+      return;
+    }
+
+    if (selectedBook.availableCopies <= 0) {
+      alert("Selected book is not available for issuing");
+      return;
+    }
+
+    // Store the values in local variables before clearing state
+    const bookTitle = selectedBook.title;
+    const studentName = selectedStudent.name;
+
     setLoading(true);
     setTimeout(() => {
-      alert(`Book "${selectedBook.title}" issued to ${selectedStudent.name}`);
+      alert(`Book "${bookTitle}" issued to ${studentName}`);
       setShowIssueModal(false);
       setSelectedBook(null);
       setSelectedStudent(null);
@@ -96,7 +110,6 @@ export default function LibraryAdminDashboard() {
       setLoading(false);
     }, 1000);
   };
-
   const handleAddBook = async () => {
     if (!newBook.title || !newBook.author || !newBook.isbn) {
       alert("Please fill all required fields");
@@ -799,71 +812,93 @@ export default function LibraryAdminDashboard() {
         </div>
       )}
 
-      {/* Issue Book Modal */}
-      {showIssueModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md">
-            <div className="bg-gradient-to-r from-green-600 to-blue-600 p-6 text-white rounded-t-2xl">
-              <h2 className="text-xl font-bold">Issue Book</h2>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {selectedBook && (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2">Selected Book</h4>
-                  <p><strong>Title:</strong> {selectedBook.title}</p>
-                  <p><strong>Author:</strong> {selectedBook.author}</p>
-                  <p><strong>Available:</strong> {selectedBook.availableCopies} copies</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Student</label>
-                <select
-                  value={selectedStudent?._id || ""}
-                  onChange={(e) => setSelectedStudent(students.find(s => s._id === e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Choose a student</option>
-                  {students.map(student => (
-                    <option key={student._id} value={student._id}>
-                      {student.name} ({student.rollNumber})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {selectedStudent && (
-                <div className="bg-green-50 p-3 rounded-lg">
-                  <p><strong>Student:</strong> {selectedStudent.name}</p>
-                  <p><strong>Roll No:</strong> {selectedStudent.rollNumber}</p>
-                  <p><strong>Department:</strong> {selectedStudent.department}</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
-              <button 
-                onClick={() => {
-                  setShowIssueModal(false);
-                  setSelectedBook(null);
-                  setSelectedStudent(null);
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => handleIssueBook(selectedBook?._id, selectedStudent?._id)}
-                disabled={!selectedStudent}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                Issue Book
-              </button>
-            </div>
+{/* Issue Book Modal */}
+{showIssueModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl w-full max-w-md">
+      <div className="bg-gradient-to-r from-green-600 to-blue-600 p-6 text-white rounded-t-2xl">
+        <h2 className="text-xl font-bold">Issue Book to Student</h2>
+      </div>
+      
+      <div className="p-6 space-y-4">
+        {/* Selected Student Info */}
+        {selectedStudent && (
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-semibold mb-2">Selected Student</h4>
+            <p><strong>Name:</strong> {selectedStudent.name}</p>
+            <p><strong>Roll No:</strong> {selectedStudent.rollNumber}</p>
+            <p><strong>Department:</strong> {selectedStudent.department}</p>
+            <p><strong>Year:</strong> Year {selectedStudent.year}</p>
+            <p><strong>Books Issued:</strong> {selectedStudent.booksIssued}</p>
           </div>
+        )}
+        
+        {/* Book Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Book to Issue</label>
+          <select
+            value={selectedBook?._id || ""}
+            onChange={(e) => setSelectedBook(books.find(b => b._id === e.target.value))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">Choose a book</option>
+            {books
+              .filter(book => book.availableCopies > 0) // Only show available books
+              .map(book => (
+                <option key={book._id} value={book._id}>
+                  {book.title} by {book.author} ({book.availableCopies} available)
+                </option>
+              ))
+            }
+          </select>
         </div>
-      )}
+        
+        {/* Selected Book Info */}
+        {selectedBook && (
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <h4 className="font-semibold mb-2">Selected Book</h4>
+            <p><strong>Title:</strong> {selectedBook.title}</p>
+            <p><strong>Author:</strong> {selectedBook.author}</p>
+            <p><strong>ISBN:</strong> {selectedBook.isbn}</p>
+            <p><strong>Category:</strong> {selectedBook.category}</p>
+            <p><strong>Available Copies:</strong> {selectedBook.availableCopies}</p>
+          </div>
+        )}
+        
+        {/* Due Date Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+          <input
+            type="date"
+            min={new Date().toISOString().split('T')[0]}
+            defaultValue={new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]} // 14 days from now
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+      </div>
+      
+      <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
+        <button 
+          onClick={() => {
+            setShowIssueModal(false);
+            setSelectedBook(null);
+            setSelectedStudent(null);
+          }}
+          className="px-4 py-2 text-gray-600 hover:text-gray-800"
+        >
+          Cancel
+        </button>
+        <button 
+          onClick={() => handleIssueBook()}
+          disabled={!selectedBook || !selectedStudent}
+          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+        >
+          Issue Book
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Loading Overlay */}
       {loading && (
