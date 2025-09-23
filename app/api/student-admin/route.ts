@@ -4,6 +4,8 @@ import Hostel from "@/models/Hostel";
 import LibraryTransaction from "@/models/LibraryTransaction";
 import FeesHistory from "@/models/FeesHistory";
 import {connectDB} from "@/lib/mongo";
+import crypto from "node:crypto";
+import { hashPasswordSHA256 } from "@/lib/auth";
 
 // ✅ GET all students with filters + pagination + sorting
 export async function GET(req: NextRequest) {
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
   const filters: any = {};
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "10");
-  const sortBy = searchParams.get("sortBy") || "name";
+  const sortBy = searchParams.get("sortBy") || "firstName";
   const order = searchParams.get("order") === "desc" ? -1 : 1;
 
   if (searchParams.get("status")) {
@@ -66,23 +68,54 @@ export async function PATCH(req: NextRequest) {
       const yy = String(currentYear).slice(-2);
       const dept = (student.department || "GEN").toUpperCase().slice(0, 3);
 
-      // Count existing approved students in same dept & current year (by createdAt year)
-      const startOfYear = new Date(currentYear, 0, 1);
-      const endOfYear = new Date(currentYear + 1, 0, 1);
-      const count = await Student.countDocuments({
-        department: student.department,
-        year: 1,
-        status: true,
-        createdAt: { $gte: startOfYear, $lt: endOfYear },
-      });
+      const prefix = `HIT${yy}${dept}`;
+      // Find the largest existing serial with this prefix
+      const last = await Student.findOne({ rollNumber: { $regex: `^${prefix}\\d{3}$` } })
+        .sort({ rollNumber: -1 })
+        .select("rollNumber")
+        .lean();
+      let nextSerialNum = 1;
+      if (last?.rollNumber) {
+        const lastSerial = parseInt(String(last.rollNumber).slice(-3), 10);
+        if (!isNaN(lastSerial)) nextSerialNum = lastSerial + 1;
+      }
+      student.rollNumber = `${prefix}${String(nextSerialNum).padStart(3, "0")}`;
+    }
 
-      const serial = String(count + 1).padStart(3, "0");
-      student.rollNumber = `HIT${yy}${dept}${serial}`;
+    // Ensure student has a password. If missing (or empty), generate a temporary one
+    let tempPassword: string | null = null;
+    if (!student.password) {
+      tempPassword = crypto.randomBytes(4).toString("hex"); // 8-char temp password
+      student.password = hashPasswordSHA256(tempPassword);
     }
 
     student.status = true;
-    await student.save();
-    return NextResponse.json({ message: "Student approved", rollNumber: student.rollNumber });
+    try {
+      await student.save();
+    } catch (err: any) {
+      // Handle duplicate rollNumber edge-case (race conditions)
+      if (err?.code === 11000 && err?.keyPattern?.rollNumber) {
+        const currentYear = new Date().getFullYear();
+        const yy = String(currentYear).slice(-2);
+        const dept = (student.department || "GEN").toUpperCase().slice(0, 3);
+        const prefix = `HIT${yy}${dept}`;
+        const last = await Student.findOne({ rollNumber: { $regex: `^${prefix}\\d{3}$` } })
+          .sort({ rollNumber: -1 })
+          .select("rollNumber")
+          .lean();
+        const nextSerialNum = (last?.rollNumber ? parseInt(String(last.rollNumber).slice(-3), 10) + 1 : 1) || 1;
+        student.rollNumber = `${prefix}${String(nextSerialNum).padStart(3, "0")}`;
+        await student.save();
+      } else {
+        console.error("Approve student save error:", err);
+        return NextResponse.json({ error: "Failed to approve student" }, { status: 500 });
+      }
+    }
+    return NextResponse.json({ 
+      message: "Student approved",
+      rollNumber: student.rollNumber,
+      credentials: tempPassword ? { email: student.email, password: tempPassword } : undefined
+    });
   }
 
   if (action === "reject") {

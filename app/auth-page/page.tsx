@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { signIn, getSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,6 +33,7 @@ export default function AuthForm() {
     const [error, setError] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [successMessage, setSuccessMessage] = useState("")
+    const [pending, setPending] = useState(false)
     const router = useRouter()
     const searchParams = useSearchParams()
 
@@ -65,33 +65,31 @@ export default function AuthForm() {
         e.preventDefault()
         setError("")
         setSuccessMessage("")
+        setPending(false)
         setIsLoading(true)
 
         try {
             if (isLogin) {
                 // --- Login flow ---
-                if (selectedRole === "admin" && !selectedAdminSubRole) {
-                    setError("Please select an admin type")
-                    setIsLoading(false)
-                    return
-                }
-
-                const result = await signIn("credentials", {
-                    email,
-                    password,
-                    role: selectedRole,
-                    adminSubRole:
-                        selectedRole === "admin" ? selectedAdminSubRole : undefined,
-                    redirect: false,
-                })
-
-                if (result?.error) {
-                    setError("Invalid credentials or role mismatch")
-                } else if (result?.ok) {
-                    const session = await getSession()
-                    if (session?.user) {
-                        router.push(`/dashboard/${selectedRole}`)
+                if (selectedRole === "student") {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password })
+                    })
+                    const data = await res.json().catch(() => ({}))
+                    if (res.status === 403) {
+                        // Not approved yet
+                        setPending(true)
+                        setError("")
+                    } else if (!res.ok) {
+                        setError(data?.error || 'Login failed')
+                    } else {
+                        router.push('/student-dashboard')
                     }
+                } else {
+                    // Admin login not wired here; guide user
+                    setError("Admin login is not available on this page. Please use the appropriate admin portal.")
                 }
             } else {
                 // --- Signup flow (Admins only) ---
@@ -143,6 +141,26 @@ export default function AuthForm() {
             }
         } catch {
             setError("Request failed. Please try again.")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const refreshPending = async () => {
+        setIsLoading(true)
+        setError("")
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            })
+            if (res.ok) {
+                router.push('/student-dashboard')
+                return
+            }
+            const data = await res.json().catch(() => ({}))
+            if (res.status !== 403) setError(data?.error || 'Still pending or invalid')
         } finally {
             setIsLoading(false)
         }
@@ -423,7 +441,12 @@ export default function AuthForm() {
 
 
 
-                                        {/* Error & Success */}
+                                        {/* Pending, Error & Success */}
+                                        {pending && (
+                                            <div className="text-sm text-green-700 bg-green-50 p-3 rounded-md">
+                                                Your application is pending admin approval. You can refresh status after some time.
+                                            </div>
+                                        )}
                                         {successMessage && (
                                             <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md">
                                                 {successMessage}
@@ -456,6 +479,16 @@ export default function AuthForm() {
                                                     "Create Account"
                                                 )}
                                             </Button>
+                                        )}
+                                        {pending && (
+                                            <div className="mt-2 grid grid-cols-1 gap-2">
+                                                <Button type="button" onClick={refreshPending} disabled={isLoading} className="w-full h-10 bg-gray-700 hover:bg-gray-800 text-white">
+                                                    {isLoading ? 'Checking...' : 'Refresh Status'}
+                                                </Button>
+                                                <Button type="button" variant="ghost" onClick={() => setPending(false)} className="w-full h-10">
+                                                    Back to Login
+                                                </Button>
+                                            </div>
                                         )}
                                     </form>
                                     {/* Student Signup Redirect */}
