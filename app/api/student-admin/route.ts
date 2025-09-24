@@ -147,3 +147,79 @@ export async function POST(req: NextRequest) {
     FeesHistorys,
   });
 }
+
+// ✅ Bulk approve/reject students
+export async function PUT(req: NextRequest) {
+  await connectDB();
+  const { ids, action } = await req.json();
+
+  if (!Array.isArray(ids) || ids.length === 0 || !["approve", "reject"].includes(action)) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const results = { processed: 0, approved: 0, rejected: 0, errors: [] as string[] };
+
+  for (const id of ids) {
+    try {
+      const student = await Student.findById(id);
+      if (!student) {
+        results.errors.push(`Student not found: ${id}`);
+        continue;
+      }
+
+      if (action === "approve") {
+        if (student.year === 1 && !student.rollNumber) {
+          const currentYear = new Date().getFullYear();
+          const yy = String(currentYear).slice(-2);
+          const dept = (student.department || "GEN").toUpperCase().slice(0, 3);
+          const prefix = `HIT${yy}${dept}`;
+          const last = await Student.findOne({ rollNumber: { $regex: `^${prefix}\\d{3}$` } })
+            .sort({ rollNumber: -1 })
+            .select("rollNumber")
+            .lean();
+          let nextSerialNum = 1;
+          if (last?.rollNumber) {
+            const lastSerial = parseInt(String(last.rollNumber).slice(-3), 10);
+            if (!isNaN(lastSerial)) nextSerialNum = lastSerial + 1;
+          }
+          student.rollNumber = `${prefix}${String(nextSerialNum).padStart(3, "0")}`;
+        }
+        student.status = true;
+        await student.save();
+        results.approved += 1;
+      } else if (action === "reject") {
+        await Student.findByIdAndDelete(id);
+        results.rejected += 1;
+      }
+      results.processed += 1;
+    } catch (err: any) {
+      // Handle duplicate rollNumber edge-case
+      if (err?.code === 11000 && err?.keyPattern?.rollNumber) {
+        try {
+          const student = await Student.findById(id);
+          if (student) {
+            const currentYear = new Date().getFullYear();
+            const yy = String(currentYear).slice(-2);
+            const dept = (student.department || "GEN").toUpperCase().slice(0, 3);
+            const prefix = `HIT${yy}${dept}`;
+            const last = await Student.findOne({ rollNumber: { $regex: `^${prefix}\\d{3}$` } })
+              .sort({ rollNumber: -1 })
+              .select("rollNumber")
+              .lean();
+            const nextSerialNum = (last?.rollNumber ? parseInt(String(last.rollNumber).slice(-3), 10) + 1 : 1) || 1;
+            student.rollNumber = `${prefix}${String(nextSerialNum).padStart(3, "0")}`;
+            await student.save();
+            results.processed += 1;
+            results.approved += 1;
+          }
+        } catch (e) {
+          results.errors.push(`Roll number regeneration failed for: ${id}`);
+        }
+      } else {
+        results.errors.push(`Failed for ${id}`);
+      }
+    }
+  }
+
+  return NextResponse.json(results);
+}

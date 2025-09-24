@@ -11,6 +11,7 @@ export default function StudentAdminDashboard() {
   const [sortBy, setSortBy] = useState("firstName");
   const [order, setOrder] = useState("asc");
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const limit = 10;
 
@@ -64,6 +65,64 @@ export default function StudentAdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBulk = async (action: "approve" | "reject") => {
+    if (selectedIds.length === 0) {
+      alert("Please select at least one student");
+      return;
+    }
+    const confirm1 = confirm(`Are you sure you want to ${action} ${selectedIds.length} student(s)?`);
+    if (!confirm1) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/student-admin', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedIds, action })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Bulk action failed');
+      setSelectedIds([]);
+      await fetchStudents();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to perform bulk action');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSelectAllCurrentPage = () => {
+    const currentPageIds = students.map(s => s._id);
+    const allSelected = currentPageIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(selectedIds.filter(id => !currentPageIds.includes(id)));
+    } else {
+      const merged = Array.from(new Set([...selectedIds, ...currentPageIds]));
+      setSelectedIds(merged);
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const exportCSV = async () => {
+    const query = new URLSearchParams({
+      ...filters,
+      status: filters.status === "" ? "" : filters.status === "true" ? "true" : "false",
+      sortBy,
+      order,
+    }).toString();
+    const url = `/api/student-admin/export?${query}`;
+    // Trigger download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'students.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   const viewDetails = async (id: string) => {
@@ -206,12 +265,40 @@ export default function StudentAdminDashboard() {
           </div>
         </div>
 
+        {/* Toolbar */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="space-x-2">
+            <button onClick={() => handleBulk('approve')} disabled={selectedIds.length === 0}
+              className="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+              <CheckCircle className="w-4 h-4 mr-1" /> Bulk Approve
+            </button>
+            <button onClick={() => handleBulk('reject')} disabled={selectedIds.length === 0}
+              className="inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+              <XCircle className="w-4 h-4 mr-1" /> Bulk Reject
+            </button>
+          </div>
+          <div>
+            <button onClick={exportCSV}
+              className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Export CSV
+            </button>
+          </div>
+        </div>
+
         {/* Students Table Card */}
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="px-4 py-4">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all"
+                      onChange={toggleSelectAllCurrentPage}
+                      checked={students.length > 0 && students.every(s => selectedIds.includes(s._id))}
+                    />
+                  </th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
                   <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
@@ -222,6 +309,14 @@ export default function StudentAdminDashboard() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {students.map((student) => (
                   <tr key={student._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${student.firstName || ''} ${student.lastName || ''}`}
+                        checked={selectedIds.includes(student._id)}
+                        onChange={() => toggleSelectOne(student._id)}
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{`${student.firstName || ''} ${student.lastName || ''}`.trim() || '—'}</div>
