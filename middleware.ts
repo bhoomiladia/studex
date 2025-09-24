@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import { verifyToken } from "@/lib/auth"; // ✅ Tumhara custom function
 
 export const config = {
-  matcher: ["/student-dashboard/:path*", "/student-admin/:path*"],
+  matcher: ["/student-dashboard/:path*"],
   runtime: 'nodejs' // ✅ Force Node.js runtime
 }
 

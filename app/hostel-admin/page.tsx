@@ -111,6 +111,11 @@ export default function HostelAdminDashboard() {
   }, []);
 
   const handleAllotHostel = async (studentId: string, hostelData: any) => {
+    if (!hostelData) {
+      alert("Hostel data is missing!");
+      return;
+    }
+  
     const confirm1 = confirm(`Allot ${hostelData.hostelName}, Room ${hostelData.roomNumber} to this student?`);
     if (!confirm1) return;
     setLoading(true);
@@ -418,7 +423,12 @@ export default function HostelAdminDashboard() {
             </div>
             <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
               <button onClick={() => setShowAllotModal(false)} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
-              <button onClick={submitAllotChange} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
+              <button  onClick={() => {
+    if (allotTarget) {
+      handleAllotHostel(allotTarget.studentId, allotForm);
+      setShowAllotModal(false);
+    }
+  }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
             </div>
           </div>
         </div>
