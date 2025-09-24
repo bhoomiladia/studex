@@ -1,9 +1,7 @@
   "use client";
   import { useEffect, useState, useCallback } from "react";
-  import { DollarSign, Eye, AlertCircle, Download, CreditCard, Receipt, User, Home, Book, Calendar, CheckCircle, XCircle, Send, Plus, Loader2 } from "lucide-react";
-
+  import { DollarSign, Eye, AlertCircle, Download, Receipt, User, Home, Book, CheckCircle, XCircle, Send, Plus, Loader2 } from "lucide-react";
   export default function StudentDashboard() {
-    const [studentData, setStudentData] = useState<any>(null);
     const [activeTab, setActiveTab] = useState("overview");
     const [loading, setLoading] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -11,42 +9,26 @@
     const [paymentAmount, setPaymentAmount] = useState("");
     const [paymentMethod, setPaymentMethod] = useState("online");
     const [issueData, setIssueData] = useState({ type: "", description: "" });
-
-    // Real API call to fetch student data
-    const fetchStudentData = useCallback(async () => {
-      setLoading(true);
-      try {
-        const response = await fetch('/api/student/dashboard', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log("📊 API Response:", data); // Debug log
-          
-          // Transform API data to match frontend structure
-          const transformedData = transformApiData(data);
-          setStudentData(transformedData);
-        } else {
-          console.error('Failed to fetch student data');
-        }
-      } catch (error) {
-        console.error('Error fetching student data:', error);
-      } finally {
-        setLoading(false);
-      }
-    }, []);
+    const [studentData, setStudentData] = useState<any>(null);
 
     // Transform API data to match your frontend structure
     const transformApiData = (apiData: any) => {
       const { student, hostel, books, fees } = apiData;
-      
-      // Calculate financial info from fees history
-      const totalFees = 85000; // You can make this dynamic
-      const paidAmount = fees?.reduce((sum: number, fee: any) => sum + (fee.amount || 0), 0) || 0;
-      const pendingAmount = totalFees - paidAmount;
+
+      // Compute financials dynamically from feesHistory
+      const byType = (type: string) => (fees || []).filter((f: any) => f.feeType === type);
+      const sum = (arr: any[]) => arr.reduce((s: number, f: any) => s + (Number(f.amount) || 0), 0);
+      const isPaid = (f: any) => f.status === "Paid";
+      const isPending = (f: any) => f.status !== "Paid";
+
+      const tuitionFees = byType("Tuition");
+      const hostelFees = byType("Hostel");
+      const libraryFines = byType("Fine");
+      const otherFees = byType("Other");
+
+      const totalFees = sum(fees || []);
+      const paidAmount = sum((fees || []).filter(isPaid));
+      const pendingAmount = sum((fees || []).filter(isPending));
 
       return {
         personalInfo: {
@@ -58,14 +40,14 @@
           status: student.status ? "Active" : "Inactive"
         },
         academicInfo: {
-          course: student.department, // Adjust based on your data
+          course: student.department,
           semester: `${student.year || 1} Year`,
-          cgpa: 0, // You can calculate this
-          attendance: 85 // You can calculate this
+          cgpa: 0,
+          attendance: 85
         },
         hostelInfo: hostel ? {
           allocated: true,
-          hostelName: hostel.name || "Not assigned",
+          hostelName: hostel.hostelName || "Not assigned",
           roomNumber: student.roomNumber,
           roomType: student.roomPreference,
           messPreference: student.messPreference,
@@ -73,24 +55,34 @@
           wardenContact: hostel.wardenContact || "Not available"
         } : { allocated: false },
         financialInfo: {
-          totalFees: totalFees,
-          paidAmount: paidAmount,
-          pendingAmount: pendingAmount,
+          totalFees,
+          paidAmount,
+          pendingAmount,
           dueDate: new Date(Date.now() + 15 * 86400000).toISOString(),
           feeBreakup: [
-            { type: "Tuition Fee", amount: 50000, paid: Math.min(30000, paidAmount), pending: Math.max(0, 50000 - paidAmount) },
-            { type: "Hostel Fee", amount: 30000, paid: Math.min(20000, paidAmount - 30000), pending: Math.max(0, 30000 - (paidAmount - 30000)) },
-            { type: "Library Fee", amount: 5000, paid: Math.min(5000, paidAmount - 60000), pending: Math.max(0, 5000 - (paidAmount - 60000)) }
+            { type: "Tuition Fee", amount: sum(tuitionFees), paid: sum(tuitionFees.filter(isPaid)), pending: sum(tuitionFees.filter(isPending)) },
+            { type: "Hostel Fee", amount: sum(hostelFees), paid: sum(hostelFees.filter(isPaid)), pending: sum(hostelFees.filter(isPending)) },
+            { type: "Library Fine", amount: sum(libraryFines), paid: sum(libraryFines.filter(isPaid)), pending: sum(libraryFines.filter(isPending)) },
+            { type: "Other", amount: sum(otherFees), paid: sum(otherFees.filter(isPaid)), pending: sum(otherFees.filter(isPending)) },
           ],
-          paymentHistory: fees?.map((fee: any, index: number) => ({
-            id: fee._id || index.toString(),
-            type: fee.type || "Fee Payment",
-            amount: fee.amount,
-            date: fee.createdAt || fee.date || new Date().toISOString(),
-            status: "Paid",
-            receiptNo: fee.receiptNumber || `RCPT${index + 1}`
-          })) || [],
-          fines: [] // You can add fines data
+          paymentHistory: (fees || [])
+            .filter((fee: any) => fee.status === "Paid")
+            .map((fee: any) => ({
+              id: String(fee._id),
+              type: fee.feeType || "Fee Payment",
+              amount: fee.amount,
+              date: fee.paymentDate || fee.createdAt || new Date().toISOString(),
+              status: "Paid",
+              receiptId: String(fee._id),
+            })),
+          fines: (fees || [])
+            .filter((f: any) => f.feeType === "Fine" && f.status !== "Paid")
+            .map((f: any) => ({
+              type: "Library Fine",
+              reason: f.remarks || "Pending fine",
+              date: f.dueDate || f.createdAt,
+              amount: f.amount,
+            })),
         },
         libraryInfo: {
           booksIssued: books?.filter((book: any) => book.status === "issued").map((book: any) => ({
@@ -107,9 +99,33 @@
             status: "Returned"
           })) || []
         },
-        issues: [] // You can add issues data later
+        issues: []
       };
     };
+
+    // Fetch dashboard data for the logged-in student
+    const fetchStudentData = useCallback(async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/student/dashboard', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const transformed = transformApiData(data);
+          setStudentData(transformed);
+        } else {
+          console.error('Failed to fetch student data');
+        }
+      } catch (e) {
+        console.error('Error fetching student data:', e);
+      } finally {
+        setLoading(false);
+      }
+    }, []);
 
     useEffect(() => {
       fetchStudentData();
@@ -163,9 +179,23 @@
       }, 1000);
     };
 
-    const downloadReceipt = (receiptNo: string) => {
-      // Simulate receipt download
-      alert(`Downloading receipt ${receiptNo}`);
+    const downloadReceipt = async (receiptId: string) => {
+      try {
+        const res = await fetch(`/api/finance/receipts/${receiptId}`);
+        if (!res.ok) {
+          alert('Failed to download receipt');
+          return;
+        }
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `receipt-${receiptId}.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('Failed to download receipt');
+      }
     };
 
     const StatusBadge = ({ status }: { status: string }) => (
