@@ -63,20 +63,26 @@ export default function AuthForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        console.log("🎯 handleSubmit CALLED - Role:", selectedRole, "IsLogin:", isLogin)
+        if (!email.includes("@")) {
+          setError("Please enter a valid email")
+          return
+        }
         setError("")
         setSuccessMessage("")
         setPending(false)
         setIsLoading(true)
-
         try {
             if (isLogin) {
                 // --- Login flow ---
                 if (selectedRole === "student") {
+                    console.log("📝 Student login attempt with:", { email, password })
                     const res = await fetch('/api/auth/login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email, password })
                     })
+                    console.log("🔔 API Response - Status:", res.status, "OK:", res.ok)
                     const data = await res.json().catch(() => ({}))
                     if (res.status === 403) {
                         // Not approved yet
@@ -84,7 +90,8 @@ export default function AuthForm() {
                         setError("")
                     } else if (!res.ok) {
                         setError(data?.error || 'Login failed')
-                    } else {
+                    } else if(res.status === 200){
+                        console.log("✅ Login SUCCESSFUL! Hard redirect...")
                         router.push('/student-dashboard')
                     }
                 } else {
@@ -156,7 +163,8 @@ export default function AuthForm() {
                 body: JSON.stringify({ email, password })
             })
             if (res.ok) {
-                router.push('/student-dashboard')
+                console.log("✅ Login SUCCESSFUL! Hard redirect...")
+    window.location.href = '/student-dashboard'
                 return
             }
             const data = await res.json().catch(() => ({}))
@@ -204,6 +212,8 @@ export default function AuthForm() {
                         ornare magna eros, eu pellentesque tortor vestibulum ut. Maecenas
                         non massa sem.
 
+
+                    </p>
                         <div className="text-center pt-2 text-sm text-gray-600">
                             New Student?{" "}
                             <a
@@ -221,8 +231,6 @@ export default function AuthForm() {
                             </a>
                             .
                         </div>
-
-                    </p>
                 </motion.div>
 
                 {/* Panel 2 */}
@@ -260,7 +268,7 @@ export default function AuthForm() {
                                 </CardHeader>
 
                                 <CardContent className="space-y-2">
-                                    <form onSubmit={handleSubmit} className="space-y-2">
+                                <form onSubmit={handleSubmit} className="space-y-2"  noValidate>
                                         {/* Name for Admin Signup */}
                                         {!isLogin && selectedRole === "admin" && (
                                             <motion.div
@@ -459,37 +467,76 @@ export default function AuthForm() {
                                         )}
 
                                         {/* Submit */}
-                                        {(selectedRole === "admin" || isLogin) && (
-                                            <Button
-                                                type="submit"
-                                                className={`w-full h-10 text-white font-medium transition-all ${isLogin
-                                                        ? "bg-emerald-600 hover:bg-emerald-700"
-                                                        : "bg-blue-600 hover:bg-blue-700"
-                                                    }`}
-                                                disabled={isLoading}
-                                            >
-                                                {isLoading ? (
-                                                    <>
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                        {isLogin ? "Signing in..." : "Creating Account..."}
-                                                    </>
-                                                ) : isLogin ? (
-                                                    "Sign In"
-                                                ) : (
-                                                    "Create Account"
-                                                )}
-                                            </Button>
-                                        )}
-                                        {pending && (
-                                            <div className="mt-2 grid grid-cols-1 gap-2">
-                                                <Button type="button" onClick={refreshPending} disabled={isLoading} className="w-full h-10 bg-gray-700 hover:bg-gray-800 text-white">
-                                                    {isLoading ? 'Checking...' : 'Refresh Status'}
-                                                </Button>
-                                                <Button type="button" variant="ghost" onClick={() => setPending(false)} className="w-full h-10">
-                                                    Back to Login
-                                                </Button>
-                                            </div>
-                                        )}
+{(selectedRole === "admin") && (
+    <Button
+        type="submit"
+        className={`w-full h-10 text-white font-medium transition-all ${
+            isLogin 
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-blue-600 hover:bg-blue-700"
+        }`}
+        disabled={isLoading}
+    >
+        {isLoading ? (
+            <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isLogin ? "Signing in..." : "Creating Account..."}
+            </>
+        ) : isLogin ? (
+            "Sign In"
+        ) : (
+            "Create Account"
+        )}
+    </Button>
+)}
+
+{(selectedRole === "student") && (
+    <>
+        {!pending && (
+            <Button
+                type="submit" 
+                className={`w-full h-10 text-white font-medium transition-all ${
+                    isLogin 
+                        ? "bg-emerald-600 hover:bg-emerald-700"
+                        : "bg-blue-600 hover:bg-blue-700"
+                }`}
+                disabled={isLoading}
+            >
+                {isLoading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {isLogin ? "Signing in..." : "Creating Account..."}
+                    </>
+                ) : isLogin ? (
+                    "Sign In"
+                ) : (
+                    "Create Account"
+                )}
+            </Button>
+        )}
+        
+        {pending && (
+            <div className="mt-2 grid grid-cols-1 gap-2">
+                <Button 
+                    type="button" 
+                    onClick={refreshPending} 
+                    disabled={isLoading} 
+                    className="w-full h-10 bg-gray-700 hover:bg-gray-800 text-white"
+                >
+                    {isLoading ? 'Checking...' : 'Refresh Status'}
+                </Button>
+                <Button 
+                    type="button" 
+                    variant="ghost" 
+                    onClick={() => setPending(false)} 
+                    className="w-full h-10"
+                >
+                    Back to Login
+                </Button>
+            </div>
+        )}
+    </>
+)}
                                     </form>
                                     {/* Student Signup Redirect */}
                                     {/* Extra for Students */}

@@ -7,7 +7,7 @@ export default function LibraryAdminDashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("students");
-  const [filters, setFilters] = useState({ status: "available", category: "", search: "" });
+  const [filters, setFilters] = useState({ status: "all", category: "", search: "" });
   const [loading, setLoading] = useState(false);
   const [showBookModal, setShowBookModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
@@ -15,65 +15,42 @@ export default function LibraryAdminDashboard() {
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [studentSearch, setStudentSearch] = useState("");
   const [newBook, setNewBook] = useState({
+    bookCode: "",
     title: "",
     author: "",
-    isbn: "",
-    category: "",
-    totalCopies: 1,
-    availableCopies: 1,
-    publisher: "",
-    publicationYear: new Date().getFullYear()
+    totalQty: 1,
+    availableQty: 1
   });
 
-  // Mock data - replace with actual API calls
+  // Real API calls
   const fetchData = useCallback(async () => {
     setLoading(true);
-    
-    setTimeout(() => {
-      // Mock books data
-      const mockBooks = Array.from({ length: 15 }, (_, i) => ({
-        _id: `book${i + 1}`,
-        title: `Book Title ${i + 1}`,
-        author: `Author ${(i % 5) + 1}`,
-        isbn: `ISBN${1000 + i}`,
-        category: ["Computer Science", "Mathematics", "Physics", "Literature", "Engineering"][i % 5],
-        totalCopies: 3 + (i % 3),
-        availableCopies: 1 + (i % 2),
-        publisher: `Publisher ${(i % 3) + 1}`,
-        publicationYear: 2020 + (i % 4),
-        status: i % 4 === 0 ? "Issued" : "Available"
-      }));
-      setBooks(mockBooks);
+    try {
+      const [booksRes, transactionsRes, studentsRes] = await Promise.all([
+        fetch('/api/library/books'),
+        fetch('/api/library/transactions'),
+        fetch('/api/library/students')
+      ]);
 
-      // Mock transactions data
-      const mockTransactions = Array.from({ length: 10 }, (_, i) => ({
-        _id: `trans${i + 1}`,
-        bookTitle: `Book Title ${i + 1}`,
-        studentName: `Student ${i + 1}`,
-        studentRoll: `2023CS${1000 + i}`,
-        type: i % 3 === 0 ? "Return" : "Issue",
-        date: new Date(Date.now() - i * 86400000).toISOString(),
-        dueDate: i % 3 === 0 ? null : new Date(Date.now() + (14 - i) * 86400000).toISOString(),
-        status: i % 4 === 0 ? "Overdue" : i % 3 === 0 ? "Returned" : "Issued"
-      }));
-      setTransactions(mockTransactions);
+      if (booksRes.ok) {
+        const booksData = await booksRes.json();
+        setBooks(booksData);
+      }
 
-      // Mock students data
-      const mockStudents = Array.from({ length: 8 }, (_, i) => ({
-        _id: `student${i + 1}`,
-        name: `Student ${i + 1}`,
-        rollNumber: `2023CS${1000 + i}`,
-        department: ["CSE", "ECE", "MECH"][i % 3],
-        year: (i % 4) + 1,
-        booksIssued: i % 3,
-        hasOverdue: i % 5 === 0,
-        email: `student${i + 1}@college.edu`,
-        phone: `98765${10000 + i}`
-      }));
-      setStudents(mockStudents);
+      if (transactionsRes.ok) {
+        const transactionsData = await transactionsRes.json();
+        setTransactions(transactionsData);
+      }
 
+      if (studentsRes.ok) {
+        const studentsData = await studentsRes.json();
+        setStudents(studentsData);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   }, []);
 
   useEffect(() => {
@@ -81,58 +58,71 @@ export default function LibraryAdminDashboard() {
   }, [fetchData]);
 
   const handleIssueBook = async () => {
-    if (!selectedStudent) {
-      alert("Please select a student first");
+    if (!selectedStudent || !selectedBook) {
+      alert("Please select both student and book");
       return;
     }
 
-    if (!selectedBook) {
-      alert("Please select a book to issue");
-      return;
-    }
-
-    if (selectedBook.availableCopies <= 0) {
+    if (selectedBook.availableQty <= 0) {
       alert("Selected book is not available for issuing");
       return;
     }
 
-    // Store the values in local variables before clearing state
-    const bookTitle = selectedBook.title;
-    const studentName = selectedStudent.name;
-
     setLoading(true);
-    setTimeout(() => {
-      alert(`Book "${bookTitle}" issued to ${studentName}`);
-      setShowIssueModal(false);
-      setSelectedBook(null);
-      setSelectedStudent(null);
-      fetchData();
+    try {
+      const response = await fetch('/api/library/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: selectedStudent._id,
+          bookCode: selectedBook._id,
+          dueDate: new Date(Date.now() + 14 * 86400000).toISOString() // 14 days from now
+        })
+      });
+
+      if (response.ok) {
+        alert(`Book "${selectedBook.title}" issued to ${selectedStudent.name}`);
+        setShowIssueModal(false);
+        setSelectedBook(null);
+        setSelectedStudent(null);
+        fetchData(); // Refresh data
+      } else {
+        alert('Failed to issue book');
+      }
+    } catch (error) {
+      alert('Failed to issue book');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
+
   const handleAddBook = async () => {
-    if (!newBook.title || !newBook.author || !newBook.isbn) {
+    if (!newBook.bookCode || !newBook.title) {
       alert("Please fill all required fields");
       return;
     }
 
     setLoading(true);
-    setTimeout(() => {
-      alert("Book added successfully!");
-      setShowBookModal(false);
-      setNewBook({
-        title: "",
-        author: "",
-        isbn: "",
-        category: "",
-        totalCopies: 1,
-        availableCopies: 1,
-        publisher: "",
-        publicationYear: new Date().getFullYear()
+    try {
+      const response = await fetch('/api/library/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBook)
       });
-      fetchData();
+
+      if (response.ok) {
+        alert("Book added successfully!");
+        setShowBookModal(false);
+        setNewBook({ bookCode: "", title: "", author: "", totalQty: 1, availableQty: 1 });
+        fetchData(); // Refresh data
+      } else {
+        alert('Failed to add book');
+      }
+    } catch (error) {
+      alert('Failed to add book');
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleEditBook = async (book: any) => {
@@ -145,18 +135,68 @@ export default function LibraryAdminDashboard() {
     if (!confirm) return;
 
     setLoading(true);
-    setTimeout(() => {
-      setBooks(books.filter(book => book._id !== bookId));
-      alert("Book deleted successfully!");
+    try {
+      const response = await fetch(`/api/library/books/${bookId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setBooks(books.filter(book => book._id !== bookId));
+        alert("Book deleted successfully!");
+      } else {
+        alert('Failed to delete book');
+      }
+    } catch (error) {
+      alert('Failed to delete book');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
+  const handleReturnBook = async (transactionId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/library/transactions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          transactionId: transactionId,
+          action: 'return'
+        })
+      });
+  
+      if (response.ok) {
+        alert("Book returned successfully!");
+        fetchData(); // Refresh all data
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to return book');
+      }
+    } catch (error) {
+      alert('Failed to return book');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter students based on search
   const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    student.rollNumber.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    student.department.toLowerCase().includes(studentSearch.toLowerCase())
+    student.name?.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    student.rollNumber?.toLowerCase().includes(studentSearch.toLowerCase()) ||
+    student.department?.toLowerCase().includes(studentSearch.toLowerCase())
   );
+
+  // Calculate book status
+  const getBookStatus = (book: any) => {
+    return book.availableQty > 0 ? "Available" : "Issued";
+  };
+
+  // Calculate transaction status
+  const getTransactionStatus = (transaction: any) => {
+    if (transaction.returnedAt) return "Returned";
+    if (new Date(transaction.dueDate) < new Date()) return "Overdue";
+    return "Issued";
+  };
 
   const StatusBadge = ({ status }: { status: string }) => {
     const config = {
@@ -177,21 +217,6 @@ export default function LibraryAdminDashboard() {
     );
   };
 
-  const CategoryBadge = ({ category }: { category: string }) => {
-    const colors = [
-      "bg-purple-100 text-purple-800",
-      "bg-orange-100 text-orange-800",
-      "bg-cyan-100 text-cyan-800",
-      "bg-pink-100 text-pink-800",
-      "bg-indigo-100 text-indigo-800"
-    ];
-    return (
-      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${colors[category.length % colors.length]}`}>
-        {category}
-      </span>
-    );
-  };
-
   if (loading && books.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
@@ -202,7 +227,6 @@ export default function LibraryAdminDashboard() {
       </div>
     );
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -225,7 +249,7 @@ export default function LibraryAdminDashboard() {
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm border">
                 <div className="text-2xl font-bold text-green-600">
-                  {books.reduce((acc, book) => acc + book.availableCopies, 0)}
+                  {books.reduce((acc, book) => acc + book.availableQty, 0)}
                 </div>
                 <div className="text-sm text-gray-500">Available Copies</div>
               </div>
@@ -245,7 +269,11 @@ export default function LibraryAdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Books Issued Today</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">12</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">   {transactions.filter(t => {
+            const today = new Date().toDateString();
+            const issueDate = new Date(t.issuedAt).toDateString();
+            return issueDate === today && !t.returnedAt;
+          }).length}</p>
               </div>
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                 <BookOpen className="w-5 h-5 text-blue-600" />
@@ -258,7 +286,7 @@ export default function LibraryAdminDashboard() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Active Issues</p>
                 <p className="text-2xl font-bold text-green-600 mt-1">
-                  {transactions.filter(t => t.status === "Issued").length}
+                {transactions.filter(t => !t.returnedAt).length}
                 </p>
               </div>
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -344,8 +372,8 @@ export default function LibraryAdminDashboard() {
           </div>
         </div>
 
-        {/* Student Management Tab */}
-        {activeTab === "students" && (
+       {/* Student Management Tab */}
+       {activeTab === "students" && (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-sm border p-6">
               <div className="flex items-center justify-between mb-4">
@@ -354,7 +382,7 @@ export default function LibraryAdminDashboard() {
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search students by name, roll no, department..."
+                    placeholder="Search students..."
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     value={studentSearch}
                     onChange={(e) => setStudentSearch(e.target.value)}
@@ -375,41 +403,52 @@ export default function LibraryAdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredStudents.map((student) => (
-                      <tr key={student._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="font-medium">{student.name}</div>
-                          <div className="text-sm text-gray-500">{student.rollNumber}</div>
-                          <div className="text-xs text-gray-400">{student.email}</div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{student.department}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">Year {student.year}</td>
-                        <td className="px-6 py-4">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {student.booksIssued} books
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {student.hasOverdue ? (
-                            <StatusBadge status="Overdue" />
-                          ) : (
-                            <StatusBadge status="Clear" />
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <button 
-                            onClick={() => {
-                              setSelectedStudent(student);
-                              setShowIssueModal(true);
-                            }}
-                            className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                          >
-                            <Book className="w-4 h-4 mr-1" />
-                            Issue Book
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                  {filteredStudents.map((student) => {
+  // Correct way to count student's issued books
+  const studentBooks = transactions.filter(t => 
+    t.student && t.student._id === student._id && !t.returnedAt
+  );
+  
+  const hasOverdue = studentBooks.some(t => 
+    new Date(t.dueDate) < new Date() && !t.returnedAt
+  );
+
+                      return (
+                        <tr key={student._id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            <div className="font-medium">{student.name}</div>
+                            <div className="text-sm text-gray-500">{student.rollNumber}</div>
+                            <div className="text-xs text-gray-400">{student.email}</div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900">{student.department}</td>
+                          <td className="px-6 py-4 text-sm text-gray-900">Year {student.year}</td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {studentBooks.length} books
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {hasOverdue ? (
+                              <StatusBadge status="Overdue" />
+                            ) : (
+                              <StatusBadge status="Clear" />
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <button 
+                              onClick={() => {
+                                setSelectedStudent(student);
+                                setShowIssueModal(true);
+                              }}
+                              className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                            >
+                              <Book className="w-4 h-4 mr-1" />
+                              Issue Book
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -417,214 +456,168 @@ export default function LibraryAdminDashboard() {
           </div>
         )}
 
-       {/* Book Management Tab */}
-{activeTab === "books" && (
-  <div className="space-y-6">
-    <div className="bg-white rounded-2xl shadow-sm border p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Book Management</h3>
-        <button 
-          onClick={() => setShowBookModal(true)}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add New Book
-        </button>
-      </div>
-      
-      {/* Search and Filter Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search books by title, author, ISBN..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          />
-        </div>
-        
-        <select 
-          value={filters.status}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Status</option>
-          <option value="available">Available</option>
-          <option value="issued">Issued</option>
-        </select>
-        
-        <select 
-          value={filters.category}
-          onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">All Categories</option>
-          <option value="Computer Science">Computer Science</option>
-          <option value="Mathematics">Mathematics</option>
-          <option value="Physics">Physics</option>
-          <option value="Literature">Literature</option>
-          <option value="Engineering">Engineering</option>
-        </select>
-      </div>
-
-      {/* Filtered Books Count */}
-      <div className="mb-4 text-sm text-gray-600">
-        Showing {books.filter(book => {
-          const matchesSearch = !filters.search || 
-            book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-            book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
-            book.isbn.toLowerCase().includes(filters.search.toLowerCase());
-          
-          const matchesStatus = filters.status === "all" || 
-            (filters.status === "available" && book.status === "Available") ||
-            (filters.status === "issued" && book.status === "Issued");
-          
-          const matchesCategory = !filters.category || book.category === filters.category;
-          
-          return matchesSearch && matchesStatus && matchesCategory;
-        }).length} of {books.length} books
-      </div>
-
-      {/* Books Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {books
-          .filter(book => {
-            const matchesSearch = !filters.search || 
-              book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-              book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
-              book.isbn.toLowerCase().includes(filters.search.toLowerCase());
-            
-            const matchesStatus = filters.status === "all" || 
-              (filters.status === "available" && book.status === "Available") ||
-              (filters.status === "issued" && book.status === "Issued");
-            
-            const matchesCategory = !filters.category || book.category === filters.category;
-            
-            return matchesSearch && matchesStatus && matchesCategory;
-          })
-          .map((book) => (
-            <div key={book._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-3">
-                <CategoryBadge category={book.category} />
-                <StatusBadge status={book.status} />
+        {/* Book Management Tab */}
+        {activeTab === "books" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Book Management</h3>
+                <button 
+                  onClick={() => setShowBookModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add New Book
+                </button>
               </div>
               
-              <h4 className="font-semibold text-lg mb-2 line-clamp-2">{book.title}</h4>
-              <p className="text-gray-600 text-sm mb-1">by {book.author}</p>
-              <p className="text-gray-500 text-xs mb-3">ISBN: {book.isbn}</p>
-              
-              <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
-                <span>Total Copies: {book.totalCopies}</span>
-                <span>Available: {book.availableCopies}</span>
+              {/* Search and Filter */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search books..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    value={filters.search}
+                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  />
+                </div>
+                
+                <select 
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="available">Available</option>
+                  <option value="issued">Issued</option>
+                </select>
               </div>
-              
-              <div className="flex space-x-2">
-                <button 
-                  onClick={() => handleEditBook(book)}
-                  className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  <Edit className="w-4 h-4 inline mr-1" />
-                  Edit
-                </button>
-                <button 
-                  onClick={() => handleDeleteBook(book._id)}
-                  className="flex-1 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                >
-                  <Trash2 className="w-4 h-4 inline mr-1" />
-                  Delete
-                </button>
+
+              {/* Books Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {books
+                  .filter(book => {
+                    const matchesSearch = !filters.search || 
+                      book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
+                      book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
+                      book.bookCode.toLowerCase().includes(filters.search.toLowerCase());
+                    
+                    const matchesStatus = filters.status === "all" || 
+                      (filters.status === "available" && book.availableQty > 0) ||
+                      (filters.status === "issued" && book.availableQty === 0);
+                    
+                    return matchesSearch && matchesStatus;
+                  })
+                  .map((book) => (
+                    <div key={book._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs">
+                          {book.bookCode}
+                        </span>
+                        <StatusBadge status={getBookStatus(book)} />
+                      </div>
+                      
+                      <h4 className="font-semibold text-lg mb-2 line-clamp-2">{book.title}</h4>
+                      <p className="text-gray-600 text-sm mb-1">by {book.author || "Unknown"}</p>
+                      
+                      <div className="flex justify-between items-center text-sm text-gray-600 mb-3">
+                        <span>Total: {book.totalQty}</span>
+                        <span>Available: {book.availableQty}</span>
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleEditBook(book)}
+                          className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                        >
+                          <Edit className="w-4 h-4 inline mr-1" />
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteBook(book._id)}
+                          className="flex-1 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                        >
+                          <Trash2 className="w-4 h-4 inline mr-1" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                }
               </div>
             </div>
-          ))
-        }
-      </div>
+          </div>
+        )}
 
-      {/* No Results Message */}
-      {books.filter(book => {
-        const matchesSearch = !filters.search || 
-          book.title.toLowerCase().includes(filters.search.toLowerCase()) ||
-          book.author.toLowerCase().includes(filters.search.toLowerCase()) ||
-          book.isbn.toLowerCase().includes(filters.search.toLowerCase());
-        
-        const matchesStatus = filters.status === "all" || 
-          (filters.status === "available" && book.status === "Available") ||
-          (filters.status === "issued" && book.status === "Issued");
-        
-        const matchesCategory = !filters.category || book.category === filters.category;
-        
-        return matchesSearch && matchesStatus && matchesCategory;
-      }).length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <Book className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p>No books found matching your search criteria.</p>
-          <button 
-            onClick={() => setFilters({ status: "all", category: "", search: "" })}
-            className="mt-2 text-blue-600 hover:text-blue-700"
-          >
-            Clear filters
-          </button>
-        </div>
-      )}
+
+{activeTab === "transactions" && (
+  <div className="space-y-6">
+    <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+      <div className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Transaction History</h3>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Book</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issued Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Returned Date</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {transactions.map((transaction) => {
+              const status = getTransactionStatus(transaction);
+              
+              return (
+                <tr key={transaction._id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="font-medium">{transaction.book?.title || "Unknown Book"}</div>
+                    <div className="text-sm text-gray-500">{transaction.book?.bookCode}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div>{transaction.student?.name || "Unknown Student"}</div>
+                    <div className="text-sm text-gray-500">{transaction.student?.rollNumber}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {new Date(transaction.issuedAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {new Date(transaction.dueDate).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {transaction.returnedAt ? new Date(transaction.returnedAt).toLocaleDateString() : "-"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <StatusBadge status={status} />
+                  </td>
+                  <td className="px-6 py-4">
+                    {!transaction.returnedAt && (
+                      <button 
+                        onClick={() => handleReturnBook(transaction._id)}
+                        className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        Return
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 )}
-        {/* Transactions Tab */}
-        {activeTab === "transactions" && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Transaction History</h3>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Book</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {transactions.map((transaction) => (
-                      <tr key={transaction._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="font-medium">{transaction.bookTitle}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div>{transaction.studentName}</div>
-                          <div className="text-sm text-gray-500">{transaction.studentRoll}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            transaction.type === "Issue" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
-                          }`}>
-                            {transaction.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {new Date(transaction.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {transaction.dueDate ? new Date(transaction.dueDate).toLocaleDateString() : "-"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <StatusBadge status={transaction.status} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Analytics Tab */}
         {activeTab === "analytics" && (
           <div className="space-y-6">
@@ -709,38 +702,24 @@ export default function LibraryAdminDashboard() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ISBN *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">bookCode *</label>
                 <input
                   type="text"
-                  value={newBook.isbn}
-                  onChange={(e) => setNewBook({ ...newBook, isbn: e.target.value })}
+                  value={newBook.bookCode}
+                  onChange={(e) => setNewBook({ ...newBook, bookCode: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="ISBN number"
+                  placeholder="bookCode number"
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select
-                  value={newBook.category}
-                  onChange={(e) => setNewBook({ ...newBook, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select category</option>
-                  <option value="Computer Science">Computer Science</option>
-                  <option value="Mathematics">Mathematics</option>
-                  <option value="Physics">Physics</option>
-                  <option value="Literature">Literature</option>
-                  <option value="Engineering">Engineering</option>
-                </select>
-              </div>
+           
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Total Copies</label>
                 <input
                   type="number"
-                  value={newBook.totalCopies}
-                  onChange={(e) => setNewBook({ ...newBook, totalCopies: parseInt(e.target.value) })}
+                  value={newBook. totalQty}
+                  onChange={(e) => setNewBook({ ...newBook,  totalQty: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   min="1"
                 />
@@ -750,36 +729,15 @@ export default function LibraryAdminDashboard() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Available Copies</label>
                 <input
                   type="number"
-                  value={newBook.availableCopies}
-                  onChange={(e) => setNewBook({ ...newBook, availableCopies: parseInt(e.target.value) })}
+                  value={newBook.availableQty}
+                  onChange={(e) => setNewBook({ ...newBook, availableQty: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   min="0"
-                  max={newBook.totalCopies}
+                  max={newBook. totalQty}
                 />
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Publisher</label>
-                <input
-                  type="text"
-                  value={newBook.publisher}
-                  onChange={(e) => setNewBook({ ...newBook, publisher: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Publisher name"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Publication Year</label>
-                <input
-                  type="number"
-                  value={newBook.publicationYear}
-                  onChange={(e) => setNewBook({ ...newBook, publicationYear: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  min="1900"
-                  max={new Date().getFullYear()}
-                />
-              </div>
+             
             </div>
             
             <div className="border-t px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
@@ -789,12 +747,11 @@ export default function LibraryAdminDashboard() {
                   setNewBook({
                     title: "",
                     author: "",
-                    isbn: "",
-                    category: "",
-                    totalCopies: 1,
-                    availableCopies: 1,
-                    publisher: "",
-                    publicationYear: new Date().getFullYear()
+                    bookCode: "",
+                    
+                     totalQty: 1,
+                    availableQty: 1,
+                   
                   });
                 }}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -843,10 +800,10 @@ export default function LibraryAdminDashboard() {
           >
             <option value="">Choose a book</option>
             {books
-              .filter(book => book.availableCopies > 0) // Only show available books
+              .filter(book => book.availableQty > 0) // Only show available books
               .map(book => (
                 <option key={book._id} value={book._id}>
-                  {book.title} by {book.author} ({book.availableCopies} available)
+                  {book.title} by {book.author} ({book.availableQty} available)
                 </option>
               ))
             }
@@ -859,9 +816,9 @@ export default function LibraryAdminDashboard() {
             <h4 className="font-semibold mb-2">Selected Book</h4>
             <p><strong>Title:</strong> {selectedBook.title}</p>
             <p><strong>Author:</strong> {selectedBook.author}</p>
-            <p><strong>ISBN:</strong> {selectedBook.isbn}</p>
+            <p><strong>bookCode:</strong> {selectedBook.bookCode}</p>
             <p><strong>Category:</strong> {selectedBook.category}</p>
-            <p><strong>Available Copies:</strong> {selectedBook.availableCopies}</p>
+            <p><strong>Available Copies:</strong> {selectedBook.availableQty}</p>
           </div>
         )}
         

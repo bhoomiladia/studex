@@ -5,7 +5,7 @@ import { Search, Filter, ChevronUp, ChevronDown, Eye, DollarSign, Receipt, Credi
 export default function FinanceAdminDashboard() {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [filters, setFilters] = useState({ status: "pending", feeType: "", department: "" });
+  const [filters, setFilters] = useState({ status: "pending", feeType: "", department: "", search: "" });
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [sortBy, setSortBy] = useState("dueDate");
@@ -13,167 +13,200 @@ export default function FinanceAdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("payments");
   const [showFeeModal, setShowFeeModal] = useState(false);
-  const [newFee, setNewFee] = useState({ studentId: "", feeType: "", amount: "", dueDate: "", description: "" });
+  const [newFee, setNewFee] = useState({ 
+    studentId: "", 
+    feeType: "", 
+    amount: "", 
+    dueDate: "", 
+    description: "" 
+  });
 
   const limit = 10;
 
+  // Real API calls
   const fetchStudents = useCallback(async () => {
     setLoading(true);
-    const query = new URLSearchParams({
-      ...filters,
-      page: String(page),
-      limit: String(limit),
-      sortBy,
-      order,
-    }).toString();
+    try {
+      const query = new URLSearchParams({
+        ...filters,
+        page: String(page),
+        limit: String(limit),
+        sortBy,
+        order,
+      }).toString();
 
-    // Simulated API call
-    setTimeout(() => {
-      const mockStudents = Array.from({ length: 10 }, (_, i) => ({
-        _id: i.toString(),
-        rollNumber: `2023CS${1000 + i}`,
-        name: `Student ${i + 1}`,
-        department: ["CSE", "ECE", "MECH"][i % 3],
-        year: (i % 4) + 1,
-        totalFees: 50000,
-        paidAmount: i % 3 === 0 ? 50000 : i % 3 === 1 ? 25000 : 0,
-        pendingAmount: i % 3 === 0 ? 0 : i % 3 === 1 ? 25000 : 50000,
-        status: i % 3 === 0 ? "paid" : i % 3 === 1 ? "partial" : "pending",
-        dueDate: new Date(Date.now() + (i % 5) * 86400000).toISOString(),
-        feeType: i % 2 === 0 ? "Tuition" : "Hostel",
-        fines: i % 4 === 0 ? 500 : 0
-      }));
-      setStudents(mockStudents);
-      setTotal(50);
+      const response = await fetch(`/api/finance/students?${query}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStudents(data.students || []);
+        setTotal(data.total || 0);
+      } else {
+        console.error('Failed to fetch students data');
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   }, [filters, page, sortBy, order]);
 
   const fetchFinancialOverview = useCallback(async () => {
     setLoading(true);
-    // Simulated API call for financial overview
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/finance/overview');
+      if (response.ok) {
+        // Data will be used for charts/reports
+        console.log('Financial overview loaded');
+      }
+    } catch (error) {
+      console.error('Error fetching financial overview:', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   }, []);
 
   const handleSendReminder = async (studentId: string) => {
-    const confirm1 = confirm("Send payment reminder to this student?");
-    if (!confirm1) return;
+    if (!confirm("Send payment reminder to this student?")) return;
     
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
+    try {
+      const response = await fetch('/api/finance/reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId })
+      });
+
+      if (response.ok) {
+        alert('Reminder sent successfully!');
+        fetchStudents();
+      } else {
+        alert('Failed to send reminder');
+      }
+    } catch (error) {
+      alert('Failed to send reminder');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
-  const handleMarkPaid = async (studentId: string, amount: number) => {
-    const confirm1 = confirm(`Mark payment of ₹${amount} as received?`);
-    if (!confirm1) return;
+  const handleMarkPaid = async (studentId: string, feeId: string, amount: number) => {
+    if (!confirm(`Mark payment of ₹${amount} as received?`)) return;
 
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
+    try {
+      const response = await fetch('/api/finance/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          studentId, 
+          feeId, 
+          amount,
+          paymentDate: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        alert('Payment marked as received!');
+        fetchStudents();
+      } else {
+        alert('Failed to mark payment');
+      }
+    } catch (error) {
+      alert('Failed to mark payment');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const handleAddFee = async () => {
-    // Validate fee data
     if (!newFee.studentId || !newFee.feeType || !newFee.amount || !newFee.dueDate) {
       alert("Please fill all required fields");
       return;
     }
 
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setShowFeeModal(false);
-      setNewFee({ studentId: "", feeType: "", amount: "", dueDate: "", description: "" });
-      fetchStudents();
-      setLoading(false);
-    }, 500);
-  };
-
-  const handleWaiveFine = async (studentId: string, fineAmount: number) => {
-    const confirm1 = confirm(`Waive fine of ₹${fineAmount} for this student?`);
-    if (!confirm1) return;
-
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      fetchStudents();
-      setLoading(false);
-    }, 500);
-  };
-
-  const viewStudentDetails = async (id: string) => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSelectedStudent({
-        student: {
-          _id: id,
-          name: "Student Details",
-          rollNumber: "2023CS1001",
-          email: "student@college.edu",
-          department: "CSE",
-          year: 2,
-          phone: "9876543210"
-        },
-        paymentHistory: [
-          { 
-            _id: "1", 
-            type: "Tuition Fee", 
-            amount: 25000, 
-            status: "Paid", 
-            date: new Date().toISOString(),
-            receiptNo: "RCPT2024001",
-            method: "Online Transfer"
-          },
-          { 
-            _id: "2", 
-            type: "Hostel Fee", 
-            amount: 15000, 
-            status: "Pending", 
-            date: new Date(Date.now() + 86400000).toISOString(),
-            dueDate: new Date(Date.now() + 86400000).toISOString()
-          },
-          { 
-            _id: "3", 
-            type: "Library Fine", 
-            amount: 500, 
-            status: "Pending", 
-            date: new Date().toISOString(),
-            description: "Late book return"
-          }
-        ],
-        feeStructure: {
-          tuitionFee: 50000,
-          hostelFee: 30000,
-          libraryFee: 5000,
-          totalFees: 85000
-        },
-        issues: [
-          { 
-            _id: "1", 
-            type: "Fee Waiver Request", 
-            description: "Requesting fee extension due to financial constraints", 
-            status: "Pending", 
-            date: new Date().toISOString() 
-          }
-        ]
+    try {
+      const response = await fetch('/api/finance/fees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newFee)
       });
+
+      if (response.ok) {
+        alert("Fee added successfully!");
+        setShowFeeModal(false);
+        setNewFee({ studentId: "", feeType: "", amount: "", dueDate: "", description: "" });
+        fetchStudents();
+      } else {
+        alert('Failed to add fee');
+      }
+    } catch (error) {
+      alert('Failed to add fee');
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
-  const downloadReceipt = (payment: any) => {
-    // Simulate receipt download
-    alert(`Downloading receipt for ${payment.receiptNo}`);
+  const handleWaiveFine = async (studentId: string, feeId: string, fineAmount: number) => {
+    if (!confirm(`Waive fine of ₹${fineAmount} for this student?`)) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/finance/fines/waive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId, feeId })
+      });
+
+      if (response.ok) {
+        alert('Fine waived successfully!');
+        fetchStudents();
+      } else {
+        alert('Failed to waive fine');
+      }
+    } catch (error) {
+      alert('Failed to waive fine');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const viewStudentDetails = async (studentId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/finance/students/${studentId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedStudent(data);
+      } else {
+        alert('Failed to load student details');
+      }
+    } catch (error) {
+      alert('Failed to load student details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadReceipt = async (paymentId: string) => {
+    try {
+      const response = await fetch(`/api/finance/receipts/${paymentId}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `receipt-${paymentId}.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert('Failed to download receipt');
+      }
+    } catch (error) {
+      alert('Failed to download receipt');
+    }
   };
 
   useEffect(() => {
@@ -355,7 +388,7 @@ export default function FinanceAdminDashboard() {
                     type="text"
                     placeholder="Search students..."
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                   />
                 </div>
                 
@@ -449,7 +482,7 @@ export default function FinanceAdminDashboard() {
                           {student.status !== "paid" && (
                             <>
                               <button 
-                                onClick={() => handleMarkPaid(student._id, student.pendingAmount)}
+                                onClick={() => handleMarkPaid(student._id, student.fees?.[0]?._id, student.pendingAmount)}
                                 className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
@@ -466,7 +499,8 @@ export default function FinanceAdminDashboard() {
                           )}
                           {student.fines > 0 && (
                             <button 
-                              onClick={() => handleWaiveFine(student._id, student.fines)}
+                            onClick={() => handleWaiveFine(student._id, student.fees?.[0]?._id, student.fines)}
+
                               className="inline-flex items-center px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                             >
                               Waive Fine
