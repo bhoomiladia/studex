@@ -29,10 +29,23 @@ export async function GET(req: NextRequest) {
     }
 
     // Library transactions and Fees history
-    const [books, fees] = await Promise.all([
-      LibraryTransaction.find({ studentId: payload.sub }).lean(),
+    const [transactions, fees] = await Promise.all([
+      LibraryTransaction.find({ studentId: payload.sub })
+        .populate('bookCode', 'title author')
+        .lean(),
       FeesHistory.find({ studentId: payload.sub }).lean(),
     ]);
+
+    // Shape books to what the frontend expects
+    const books = transactions.map((t: any) => ({
+      _id: t._id,
+      bookTitle: t.bookCode?.title || 'Unknown Book',
+      author: t.bookCode?.author || 'Unknown',
+      issueDate: t.issuedAt,
+      dueDate: t.dueDate,
+      status: t.returnedAt ? 'returned' : 'issued',
+      returnDate: t.returnedAt || null,
+    }));
 
     return NextResponse.json({ student, hostel, books, fees });
   } catch (e) {
