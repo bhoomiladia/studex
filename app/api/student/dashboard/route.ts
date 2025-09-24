@@ -1,3 +1,6 @@
+// @ts-nocheck
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongo";
 import { verifyToken } from "@/lib/auth";

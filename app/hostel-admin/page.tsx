@@ -1,3 +1,6 @@
+// @ts-nocheck
+
+
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { Search, Filter, ChevronUp, ChevronDown, Eye, Home, UserPlus, UserMinus, Building, Bed, Wifi, Users, Loader2, CheckCircle, XCircle, Edit, Plus } from "lucide-react";

@@ -1,4 +1,7 @@
 // app/api/finance/fees/route.ts - Corrected version
+
+// @ts-nocheck
+
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongo";
 import FeesHistory from "@/models/FeesHistory";

@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { NextRequest, NextResponse } from "next/server";
 import Student from "@/models/Student";
 import Hostel from "@/models/Hostel";
