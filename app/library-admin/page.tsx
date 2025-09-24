@@ -106,31 +106,44 @@ export default function LibraryAdminDashboard() {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/library/books', {
-        method: 'POST',
+      const isEdit = Boolean(newBook._id);
+      const endpoint = isEdit ? `/api/library/books/${newBook._id}` : '/api/library/books';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const payload = { ...newBook };
+      // basic guard: availableQty should not exceed totalQty
+      if (
+        typeof payload.totalQty === 'number' &&
+        typeof payload.availableQty === 'number' &&
+        payload.availableQty > payload.totalQty
+      ) {
+        alert('Available copies cannot exceed total copies');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newBook)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
-        alert("Book added successfully!");
+        alert(isEdit ? 'Book updated successfully!' : 'Book added successfully!');
         setShowBookModal(false);
         setNewBook({ bookCode: "", title: "", author: "", totalQty: 1, availableQty: 1 });
         fetchData(); // Refresh data
       } else {
-        alert('Failed to add book');
+        const error = await response.json().catch(() => ({}));
+        alert(error?.error || (isEdit ? 'Failed to update book' : 'Failed to add book'));
       }
     } catch (error) {
-      alert('Failed to add book');
+      alert('Failed to save book');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditBook = async (book: any) => {
-    setNewBook(book);
-    setShowBookModal(true);
-  };
 
   const handleDeleteBook = async (bookId: string) => {
     const confirm = window.confirm("Are you sure you want to delete this book?");

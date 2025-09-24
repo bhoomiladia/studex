@@ -15,4 +15,4 @@ const AdminSchema = new Schema(
   { timestamps: true }
 );
 
-export default models.Library || model("Admin", AdminSchema);
+export default models.Admin || model("Admin", AdminSchema);
