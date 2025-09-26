@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ import {
 import type { UserRole, AdminSubRole } from "@/lib/types"
 import { Loader2, GraduationCap, Eye, EyeOff } from "lucide-react"
 
-export default function AuthForm() {
+function AuthForm() {
     const [isLogin, setIsLogin] = useState(true)
 
     // --- Common states ---

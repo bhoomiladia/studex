@@ -15,4 +15,13 @@ declare module 'next-themes' {
   }
 
   export const ThemeProvider: React.ComponentType<ThemeProviderProps>;
+
+  export interface UseThemeReturn {
+    theme?: string;
+    setTheme?: (theme: string) => void;
+    systemTheme?: string;
+    resolvedTheme?: string;
+  }
+
+  export function useTheme(): UseThemeReturn;
 }

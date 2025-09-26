@@ -9,6 +9,8 @@ import Hostel from "@/models/Hostel";
 import LibraryTransaction from "@/models/LibraryTransaction";
 import FeesHistory from "@/models/FeesHistory";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     await connectDB();

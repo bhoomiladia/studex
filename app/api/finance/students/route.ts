@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongo";
 import Student from "@/models/Student";
 import FeesHistory from "@/models/FeesHistory";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
@@ -10,8 +12,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status') || 'pending';
     const feeType = searchParams.get('feeType') || '';
-    const department = searchParams.get('department') || '';
     const search = searchParams.get('search') || '';
+    const department = searchParams.get('department') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const sortBy = searchParams.get('sortBy') || 'dueDate';
@@ -41,19 +43,19 @@ export async function GET(req: NextRequest) {
 
     // Get fee information for each student
     const studentsWithFees = await Promise.all(
-      students.map(async (student) => {
+      students.map(async (student: any) => {
         const fees = await FeesHistory.find({ studentId: student._id })
           .sort({ dueDate: order === 'asc' ? 1 : -1 })
-          .lean();
+          .lean<Array<{ amount: number; status: 'Paid' | 'Pending' | 'Overdue'; dueDate: Date; feeType: string }>>();
 
-        const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0);
+        const totalFees = fees.reduce((sum: number, fee) => sum + fee.amount, 0);
         const paidAmount = fees
-          .filter(fee => fee.status === 'Paid')
-          .reduce((sum, fee) => sum + fee.amount, 0);
+          .filter((fee) => fee.status === 'Paid')
+          .reduce((sum: number, fee) => sum + fee.amount, 0);
         const pendingAmount = totalFees - paidAmount;
         
-        const pendingFees = fees.filter(fee => fee.status !== 'Paid');
-        const hasOverdue = pendingFees.some(fee => new Date(fee.dueDate) < new Date());
+        const pendingFees = fees.filter((fee) => fee.status !== 'Paid');
+        const hasOverdue = pendingFees.some((fee) => new Date(fee.dueDate) < new Date());
 
         return {
           _id: student._id,
@@ -68,7 +70,7 @@ export async function GET(req: NextRequest) {
           status: pendingAmount === 0 ? 'paid' : hasOverdue ? 'overdue' : 'pending',
           dueDate: pendingFees.length > 0 ? pendingFees[0].dueDate : null,
           feeType: pendingFees.length > 0 ? pendingFees[0].feeType : '',
-          fines: fees.filter(fee => fee.feeType === 'Fine').reduce((sum, fee) => sum + fee.amount, 0),
+          fines: fees.filter((fee) => fee.feeType === 'Fine').reduce((sum: number, fee) => sum + fee.amount, 0),
           fees // Include all fees for details
         };
       })
