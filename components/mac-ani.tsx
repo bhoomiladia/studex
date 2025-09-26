@@ -404,7 +404,7 @@
 ///////////_____>THIS SHIT IS WORKING
 
 import React from "react";
-import { MacbookScroll } from "@/components/ui/macbook-scroll";
+import { MacbookScroll } from "@/components/macbook-scroll";
 
 export function MacbookScrollDemo() {
   return (

@@ -5,18 +5,30 @@ import FeesHistory from "@/models/FeesHistory";
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-    const student = await Student.findById(params.id)
+    const { id } = await params;
+    const student = await Student.findById(id)
       .select('firstName lastName email phone department year rollNumber')
-      .lean();
+      .lean<
+        | {
+            firstName?: string
+            lastName?: string
+            email: string
+            phone?: string
+            department?: string
+            year?: number
+            rollNumber: string
+          }
+        | null
+      >();
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     }
 
-    const fees = await FeesHistory.find({ studentId: params.id })
+    const fees = await FeesHistory.find({ studentId: id })
       .sort({ createdAt: -1 })
       .lean();
 

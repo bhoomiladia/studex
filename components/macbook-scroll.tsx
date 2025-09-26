@@ -122,7 +122,35 @@
 
 
 import React from "react";
-import { MacbookScroll } from "@/components/ui/macbook-scroll";
+
+export const MacbookScroll = ({
+  title,
+  src,
+  showGradient,
+}: {
+  title?: React.ReactNode;
+  src?: string;
+  showGradient?: boolean;
+}) => {
+  return (
+    <div className="macbook-container relative p-8">
+      {title && <div className="text-center text-gray-700 dark:text-gray-300 mb-4">{title}</div>}
+      {/* Macbook frame */}
+      <div className="relative bg-gray-200 dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden w-full max-w-4xl mx-auto">
+        <div className="bg-black h-[600px] overflow-hidden text-white flex items-center justify-center">
+          {src ? (
+            <img src={src} alt="Macbook Content" className="w-full h-full object-cover" />
+          ) : (
+            <div className="text-sm text-gray-300">No content</div>
+          )}
+        </div>
+      </div>
+      {showGradient && (
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-blue-500 to-purple-500 opacity-10" />
+      )}
+    </div>
+  );
+};
 
 type MacbookScrollDemoProps = {
   className?: string;

@@ -6,11 +6,12 @@ import LibraryTransaction from "@/models/LibraryTransaction";
 // GET /api/library/books/[id]
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
-    const book = await Book.findById(params.id).lean();
+    const { id } = await params;
+    const book = await Book.findById(id).lean();
     if (!book) {
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
@@ -23,7 +24,7 @@ export async function GET(
 // PUT /api/library/books/[id]
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
@@ -36,7 +37,8 @@ export async function PUT(
       }
     }
 
-    const updated = await Book.findByIdAndUpdate(params.id, data, {
+    const { id } = await params;
+    const updated = await Book.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
     }).lean();
@@ -53,13 +55,14 @@ export async function PUT(
 // DELETE /api/library/books/[id]
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
     // Prevent deletion if there are active (unreturned) transactions
+    const { id } = await params;
     const activeIssues = await LibraryTransaction.countDocuments({
-      bookCode: params.id,
+      bookCode: id,
       returnedAt: { $exists: false },
     });
     if (activeIssues > 0) {
@@ -68,7 +71,7 @@ export async function DELETE(
         { status: 400 }
       );
     }
-    const deleted = await Book.findByIdAndDelete(params.id).lean();
+    const deleted = await Book.findByIdAndDelete(id).lean();
     if (!deleted) {
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
