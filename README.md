@@ -21,6 +21,4 @@ Studex is a modern campus management platform designed for colleges and universi
   - Academic results and transcript generation
   - Hostel room/mess allocation and fee management  
 
-**Contributors**: Bhoomi Ladia and Harshraj9142
-
 The platform emphasizes efficiency, intuitive UI, and extensibility for educational institutions. For code and more, refer to your GitHub repo.
